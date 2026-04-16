@@ -1,0 +1,157 @@
+version: "1.0"
+rules:
+  - keywords: ["上个月", "前5", "产品", "销售额"]
+    sql: "SELECT p.product_name, ROUND(SUM(oi.quantity * oi.unit_price), 2) AS revenue FROM order_items oi JOIN orders o ON oi.order_id = o.order_id JOIN products p ON oi.product_id = p.product_id WHERE strftime('%Y-%m', o.order_date) = (SELECT strftime('%Y-%m', date(MAX(order_date), 'start of month', '-1 month')) FROM orders) GROUP BY p.product_name ORDER BY revenue DESC LIMIT 5;"
+    explanation: "统计上个月各产品销售额并取 Top5。"
+    priority: 10
+    tags: ["product", "revenue", "time"]
+
+  - keywords: ["华东", "销售额"]
+    sql: "SELECT region, ROUND(SUM(total_amount), 2) AS revenue FROM orders WHERE region = '华东' GROUP BY region LIMIT 50;"
+    explanation: "统计华东区域订单总销售额。"
+    priority: 5
+    tags: ["region", "revenue"]
+
+  - keywords: ["各城市", "订单数量"]
+    sql: "SELECT city, COUNT(*) AS order_count FROM orders GROUP BY city ORDER BY order_count DESC LIMIT 10;"
+    explanation: "按城市统计订单量并排序。"
+    priority: 3
+    tags: ["city", "order_count"]
+
+  - keywords: ["城市", "订单量"]
+    sql: "SELECT city, COUNT(*) AS order_count FROM orders GROUP BY city ORDER BY order_count DESC LIMIT 10;"
+    explanation: "按城市统计订单量并排序。"
+    priority: 3
+    tags: ["city", "order_count"]
+
+  - keywords: ["城市", "订单数量"]
+    sql: "SELECT city, COUNT(*) AS order_count FROM orders GROUP BY city ORDER BY order_count DESC LIMIT 10;"
+    explanation: "按城市统计订单量并排序。"
+    priority: 3
+    tags: ["city", "order_count"]
+
+  - keywords: ["订单", "总数"]
+    sql: "SELECT COUNT(*) AS order_count FROM orders LIMIT 50;"
+    explanation: "统计订单总数。"
+    priority: 3
+    tags: ["order", "count"]
+
+  - keywords: ["订单", "平均金额"]
+    sql: "SELECT ROUND(AVG(total_amount), 2) AS avg_total_amount FROM orders LIMIT 50;"
+    explanation: "统计订单平均金额。"
+    priority: 3
+    tags: ["order", "avg"]
+
+  - keywords: ["订单", "最高金额"]
+    sql: "SELECT MAX(total_amount) AS max_total_amount FROM orders LIMIT 50;"
+    explanation: "查询订单最高金额。"
+    priority: 3
+    tags: ["order", "max"]
+
+  - keywords: ["订单", "最低金额"]
+    sql: "SELECT MIN(total_amount) AS min_total_amount FROM orders LIMIT 50;"
+    explanation: "查询订单最低金额。"
+    priority: 3
+    tags: ["order", "min"]
+
+  - keywords: ["北京", "订单"]
+    sql: "SELECT order_id, order_date, customer_name, total_amount FROM orders WHERE city = '北京' ORDER BY order_date DESC LIMIT 20;"
+    explanation: "筛选北京订单。"
+    priority: 5
+    tags: ["city", "order"]
+
+  - keywords: ["上海", "订单"]
+    sql: "SELECT order_id, order_date, customer_name, total_amount FROM orders WHERE city = '上海' ORDER BY order_date DESC LIMIT 20;"
+    explanation: "筛选上海订单。"
+    priority: 5
+    tags: ["city", "order"]
+
+  - keywords: ["华南", "订单"]
+    sql: "SELECT order_id, order_date, customer_name, city, total_amount FROM orders WHERE region = '华南' ORDER BY order_date DESC LIMIT 20;"
+    explanation: "筛选华南区域订单。"
+    priority: 5
+    tags: ["region", "order"]
+
+  - keywords: ["最近", "订单"]
+    sql: "SELECT order_id, order_date, customer_name, city, total_amount FROM orders ORDER BY order_date DESC LIMIT 10;"
+    explanation: "查看最近订单。"
+    priority: 3
+    tags: ["order", "recent"]
+
+  - keywords: ["客户", "订单金额"]
+    sql: "SELECT customer_name, total_amount FROM orders ORDER BY total_amount DESC LIMIT 10;"
+    explanation: "查看客户与订单金额。"
+    priority: 3
+    tags: ["customer", "order_amount"]
+
+  - keywords: ["列出", "所有产品"]
+    sql: "SELECT product_id, product_name, category FROM products ORDER BY product_id LIMIT 20;"
+    explanation: "查看商品列表。"
+    priority: 3
+    tags: ["product", "list"]
+
+  - keywords: ["商品", "总数"]
+    sql: "SELECT COUNT(*) AS product_count FROM products LIMIT 50;"
+    explanation: "统计商品总数。"
+    priority: 3
+    tags: ["product", "count"]
+
+  - keywords: ["商品", "类别"]
+    sql: "SELECT category, COUNT(*) AS product_count FROM products GROUP BY category ORDER BY product_count DESC LIMIT 20;"
+    explanation: "按类别统计商品数量。"
+    priority: 3
+    tags: ["product", "category"]
+
+  - keywords: ["类别", "商品数量"]
+    sql: "SELECT category, COUNT(*) AS product_count FROM products GROUP BY category ORDER BY product_count DESC LIMIT 20;"
+    explanation: "按类别统计商品数量。"
+    priority: 3
+    tags: ["category", "product_count"]
+
+  - keywords: ["数码配件", "商品"]
+    sql: "SELECT product_id, product_name, category FROM products WHERE category = '数码配件' ORDER BY product_id LIMIT 20;"
+    explanation: "筛选数码配件商品。"
+    priority: 5
+    tags: ["product", "category"]
+
+  - keywords: ["商品", "列表"]
+    sql: "SELECT product_id, product_name, category FROM products ORDER BY product_id LIMIT 20;"
+    explanation: "查看商品列表。"
+    priority: 3
+    tags: ["product", "list"]
+
+  - keywords: ["明细", "总数"]
+    sql: "SELECT COUNT(*) AS order_item_count FROM order_items LIMIT 50;"
+    explanation: "统计订单明细总数。"
+    priority: 3
+    tags: ["order_item", "count"]
+
+  - keywords: ["明细", "平均数量"]
+    sql: "SELECT ROUND(AVG(quantity), 2) AS avg_quantity FROM order_items LIMIT 50;"
+    explanation: "统计订单明细平均购买数量。"
+    priority: 3
+    tags: ["order_item", "avg"]
+
+  - keywords: ["明细", "最高单价"]
+    sql: "SELECT MAX(unit_price) AS max_unit_price FROM order_items LIMIT 50;"
+    explanation: "查询订单明细最高单价。"
+    priority: 3
+    tags: ["order_item", "max"]
+
+  - keywords: ["明细", "最低单价"]
+    sql: "SELECT MIN(unit_price) AS min_unit_price FROM order_items LIMIT 50;"
+    explanation: "查询订单明细最低单价。"
+    priority: 3
+    tags: ["order_item", "min"]
+
+  - keywords: ["product_id", "销量"]
+    sql: "SELECT product_id, SUM(quantity) AS total_quantity FROM order_items GROUP BY product_id ORDER BY total_quantity DESC LIMIT 20;"
+    explanation: "按 product_id 统计销量。"
+    priority: 3
+    tags: ["product", "quantity"]
+
+  - keywords: ["订单", "金额", "排序"]
+    sql: "SELECT order_id, customer_name, total_amount FROM orders ORDER BY total_amount DESC LIMIT 10;"
+    explanation: "按订单金额降序排序。"
+    priority: 3
+    tags: ["order", "amount", "sort"]

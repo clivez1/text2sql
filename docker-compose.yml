@@ -1,0 +1,85 @@
+version: "3.8"
+
+services:
+  # Streamlit UI
+  ui:
+    build: .
+    container_name: text2sql-ui
+    ports:
+      - "8501:8501"
+    environment:
+      - APP_ENV=production
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - LLM_PROVIDER=${LLM_PROVIDER:-bailian_code_plan}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
+      - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
+      - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
+      - DB_URL=sqlite:///data/demo_db/sales.db
+      - VECTOR_DB_PATH=./data/chroma
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: streamlit run app/ui/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
+
+  # FastAPI Backend
+  api:
+    build: .
+    container_name: text2sql-api
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - LLM_PROVIDER=${LLM_PROVIDER:-bailian_code_plan}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
+      - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
+      - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
+      - DB_URL=sqlite:///data/demo_db/sales.db
+      - VECTOR_DB_PATH=./data/chroma
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000
+
+  # Combined service (UI + API in one container, for simple deployment)
+  combined:
+    build: .
+    container_name: text2sql-combined
+    ports:
+      - "8501:8501"
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+      - LLM_PROVIDER=${LLM_PROVIDER:-bailian_code_plan}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
+      - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
+      - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
+      - DB_URL=sqlite:///data/demo_db/sales.db
+      - VECTOR_DB_PATH=./data/chroma
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    # Run both Streamlit (8501) and FastAPI (8000) via entrypoint script
+    command: /app/entrypoint.sh
