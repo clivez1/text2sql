@@ -11,16 +11,12 @@ load_dotenv(dotenv_path=".impKey", override=True)
 
 
 def _detect_provider(base_url: str) -> str:
-    """Auto-detect provider from base_url pattern."""
+    """Auto-detect API protocol from base_url pattern."""
     if not base_url:
         return "openai_compatible"
     lower = base_url.lower()
-    if "dashscope.aliyuncs.com" in lower or "bailian" in lower:
-        return "bailian_code_plan"
-    if "xfyun.cn" in lower or "xf-yun.com" in lower:
-        return "astron"
-    if "openai.com" in lower:
-        return "openai_compatible"
+    if "anthropic" in lower or "claude" in lower:
+        return "anthropic"
     return "openai_compatible"
 
 
@@ -83,9 +79,8 @@ class Settings:
 
         if not model:
             defaults = {
-                "bailian_code_plan": "glm-5",
+                "anthropic": "claude-sonnet-4-20250514",
                 "openai_compatible": "gpt-4o-mini",
-                "astron": "astron-code-latest",
             }
             model = defaults.get(provider, "gpt-4o-mini")
 
