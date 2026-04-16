@@ -196,10 +196,16 @@ text2sql-agent/
 │   │
 │   └── config/             # 配置管理
 │
-├── data/
+├── data/                    # Demo 数据（入 git）
 │   ├── demo_db/            # SQLite Demo 数据库
-│   ├── ddl/                # 表结构定义
-│   └── chroma/             # ChromaDB 向量数据
+│   └── ddl/                # 表结构定义
+│
+├── .deploy/                 # 运行时数据（不入 git）
+│   ├── chroma/             # ChromaDB 向量数据
+│   ├── logs/               # 应用日志
+│   └── db/                 # 运行时数据库
+│
+├── datasets/                # 测试数据集（不入 git）
 │
 ├── scripts/                # 工具脚本
 │   ├── init_demo_db.py    # 初始化 Demo 数据库

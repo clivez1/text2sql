@@ -55,7 +55,7 @@ class Settings:
     mysql_password: str = os.getenv("MYSQL_PASSWORD", "")
     mysql_database: str = os.getenv("MYSQL_DATABASE", "")
 
-    vector_db_path: str = os.getenv("VECTOR_DB_PATH", "./data/chroma")
+    vector_db_path: str = os.getenv("VECTOR_DB_PATH", "./.deploy/chroma")
     sql_max_rows: int = int(os.getenv("SQL_MAX_ROWS", "200"))
     sql_query_timeout: int = int(os.getenv("SQL_QUERY_TIMEOUT", "15"))
     readonly_mode: bool = os.getenv("READONLY_MODE", "true").lower() == "true"
@@ -115,7 +115,7 @@ def get_settings() -> Settings:
         mysql_user=os.getenv("MYSQL_USER", ""),
         mysql_password=os.getenv("MYSQL_PASSWORD", ""),
         mysql_database=os.getenv("MYSQL_DATABASE", ""),
-        vector_db_path=os.getenv("VECTOR_DB_PATH", "./data/chroma"),
+        vector_db_path=os.getenv("VECTOR_DB_PATH", "./.deploy/chroma"),
         sql_max_rows=int(os.getenv("SQL_MAX_ROWS", "200")),
         sql_query_timeout=int(os.getenv("SQL_QUERY_TIMEOUT", "15")),
         readonly_mode=os.getenv("READONLY_MODE", "true").lower() == "true",

@@ -74,7 +74,7 @@ load_dotenv()  # 启动时执行，加载 .env 文件
 | `LLM_MODEL` | string | - | 否 | 模型名称 |
 | `DB_TYPE` | string | `sqlite` | 否 | 数据库类型 |
 | `DB_URL` | string | `sqlite:///data/demo_db/sales.db` | 否 | 数据库连接串 |
-| `VECTOR_DB_PATH` | string | `./data/chroma` | 否 | 向量库路径 |
+| `VECTOR_DB_PATH` | string | `./.deploy/chroma` | 否 | 向量库路径 |
 | `READONLY_MODE` | bool | `true` | 否 | 只读模式 |
 | `SQL_MAX_ROWS` | int | `200` | 否 | 最大返回行数 |
 | `SQL_QUERY_TIMEOUT` | int | `15` | 否 | 查询超时(秒) |
@@ -336,13 +336,13 @@ SQLiteConnector / MySQLConnector / PostgreSQLConnector
 ### ChromaDB 配置
 
 ```bash
-VECTOR_DB_PATH=./data/chroma
+VECTOR_DB_PATH=./.deploy/chroma
 ```
 
 **目录结构**：
 
 ```
-data/chroma/
+.deploy/chroma/
 ├── chroma.sqlite3           # 主数据库文件
 ├── schema_store/            # Schema 向量存储
 │   ├── chroma.sqlite3
@@ -526,7 +526,7 @@ LLM_MODEL=glm-5
 
 # 数据库
 DB_URL=sqlite:///data/demo_db/sales.db
-VECTOR_DB_PATH=./data/chroma
+VECTOR_DB_PATH=./.deploy/chroma
 
 # 安全
 READONLY_MODE=true
@@ -550,7 +550,7 @@ LLM_MODEL=glm-5
 
 # 数据库（MySQL）
 DB_URL=mysql+pymysql://text2sql:${DB_PASSWORD}@db.internal:3306/sales
-VECTOR_DB_PATH=/data/chroma
+VECTOR_DB_PATH=./.deploy/chroma
 
 # 安全
 READONLY_MODE=true

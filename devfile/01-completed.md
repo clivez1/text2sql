@@ -90,7 +90,7 @@
 
 ## 5. 架构优化 Round 4 结论（2026-04-15）
 
-**方案分析完成，执行阶段开始。**
+**✅ 已完成**
 
 核心修正：
 - 执行顺序：1→2→3→4→5→6→7 → 1→5→2→6→3→4→7
@@ -98,6 +98,63 @@
 - Provider Registry 降级为可选
 - LCEL 替代 Vanna 延后为 R2
 
-详见 `devfile/00-master-plan.md` 和 `devfile/02-pending.md`。
+**完成项：**
+| Step | 任务 | 完成日期 |
+|------|------|---------|
+| 1 | 规则 YAML 化 | 2026-04-15 |
+| 5 | Provider Registry + Astron Bug | 2026-04-15 |
+| 2 | Chart 下沉 + 错误处理 | 2026-04-15 |
+| 6 | SchemaRetriever 抽象 | 2026-04-15 |
+| 3 | generate_sql() 拆分 | 2026-04-15 |
+| 4 | DB 层消重 | 2026-04-15 |
+| 7 | Pipeline Stage 化 | 长期目标 |
 
-_最后更新：2026-04-15_
+---
+
+## 6. 部署目录重构 Round 5（2026-04-16）
+
+**✅ 已完成**
+
+目标：
+- 分离 Demo 数据、运行时数据、测试数据
+- 测试数据（隐私）不入 git
+- 向量库可随时替换/清理
+
+完成项：
+| Step | 任务 | 完成日期 |
+|------|------|---------|
+| 1 | 创建 `.deploy/` + `datasets/` 目录结构 | 2026-04-16 |
+| 2 | 更新 .gitignore（排除 .deploy/ datasets/） | 2026-04-16 |
+| 3 | docker-compose.yml volume 映射重构 | 2026-04-16 |
+| 4 | .env.example VECTOR_DB_PATH 更新 | 2026-04-16 |
+| 5 | settings.py vector_db_path 默认值更新 | 2026-04-16 |
+| 6 | Dockerfile 修复 + 文档更新（README/QUICKSTART/deployment） | 2026-04-16 |
+
+路径变更：
+- 向量库：`data/chroma/` → `.deploy/chroma/`
+- 日志：`logs/` → `.deploy/logs/`
+- Demo 数据：`data/demo_db/` 不变（入 git）
+- Docker data volume：改为只读（`:ro`）
+
+详见 `devfile/08-deploy-restructure-plan.md`。
+
+---
+
+## 7. 部署目录重构遗留修复（2026-04-17）
+
+**✅ 已完成**
+
+Round 5 复查发现 6 处遗留旧路径引用，本轮全部修复：
+
+| # | 文件 | 修改内容 |
+|---|------|---------|
+| 1 | `.github/workflows/build.yml` | `VECTOR_DB_PATH=./data/chroma` → `./.deploy/chroma` |
+| 2 | `.github/workflows/test.yml` | `VECTOR_DB_PATH=./data/chroma` → `./.deploy/chroma` |
+| 3 | `app/core/logging.py` | 默认日志路径 `logs/app.log` → `.deploy/logs/app.log` |
+| 4 | `docs/CONFIGURATION.md` | 4 处 `./data/chroma` 引用全部更新为 `./.deploy/chroma` |
+| 5 | `docs/deployment.md` | 验证已正确使用 `.deploy/` 路径，无需修改 |
+| 6 | `devfile/archive/` | 历史归档文档，保留原始记录不做修改 |
+
+复查结论：代码层、CI、文档中不再有指向旧路径的运行时引用。
+
+_最后更新：2026-04-17_

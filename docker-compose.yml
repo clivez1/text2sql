@@ -22,10 +22,13 @@ services:
       - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
       - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
       - DB_URL=sqlite:///data/demo_db/sales.db
-      - VECTOR_DB_PATH=./data/chroma
+      - VECTOR_DB_PATH=./.deploy/chroma
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      # Demo data (read-only, included in image)
+      - ./data:/app/data:ro
+      # Runtime data (writable)
+      - ./.deploy/chroma:/app/.deploy/chroma
+      - ./.deploy/logs:/app/.deploy/logs
     command: streamlit run app/ui/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
 
   # FastAPI Backend
@@ -49,10 +52,13 @@ services:
       - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
       - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
       - DB_URL=sqlite:///data/demo_db/sales.db
-      - VECTOR_DB_PATH=./data/chroma
+      - VECTOR_DB_PATH=./.deploy/chroma
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      # Demo data (read-only, included in image)
+      - ./data:/app/data:ro
+      # Runtime data (writable)
+      - ./.deploy/chroma:/app/.deploy/chroma
+      - ./.deploy/logs:/app/.deploy/logs
     command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000
 
   # Combined service (UI + API in one container, for simple deployment)
@@ -77,9 +83,12 @@ services:
       - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
       - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
       - DB_URL=sqlite:///data/demo_db/sales.db
-      - VECTOR_DB_PATH=./data/chroma
+      - VECTOR_DB_PATH=./.deploy/chroma
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      # Demo data (read-only, included in image)
+      - ./data:/app/data:ro
+      # Runtime data (writable)
+      - ./.deploy/chroma:/app/.deploy/chroma
+      - ./.deploy/logs:/app/.deploy/logs
     # Run both Streamlit (8501) and FastAPI (8000) via entrypoint script
     command: /app/entrypoint.sh

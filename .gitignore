@@ -43,7 +43,17 @@ env/
 .impKey.local
 .impKey.*.local
 
-# Logs
+# ============================================
+# Round 5: Deployment directory restructuring
+# ============================================
+
+# Runtime data (can be cleaned with: rm -rf .deploy/)
+.deploy/
+
+# Test datasets (PRIVATE - NEVER COMMIT)
+datasets/
+
+# Legacy logs location (now in .deploy/logs/)
 logs/
 *.log
 
@@ -51,7 +61,7 @@ logs/
 data/demo_db/*.db-shm
 data/demo_db/*.db-wal
 
-# ChromaDB vector store (generated, can be large)
+# Legacy ChromaDB location (now in .deploy/chroma/)
 data/chroma/
 
 # Test coverage

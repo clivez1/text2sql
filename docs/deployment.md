@@ -50,7 +50,9 @@ docker build -t text2sql-agent:latest .
 docker run -d --name text2sql \
   -p 8501:8501 -p 8000:8000 \
   -e LLM_API_KEY=your_key \
-  -v $(pwd)/data:/app/data \
+  -v $(pwd)/data:/app/data:ro \
+  -v $(pwd)/.deploy/chroma:/app/.deploy/chroma \
+  -v $(pwd)/.deploy/logs:/app/.deploy/logs \
   text2sql-agent:latest
 ```
 
@@ -142,7 +144,7 @@ echo "Service healthy"
 
 ```ini
 # /etc/logrotate.d/text2sql
-/opt/text2sql-agent/logs/*.log {
+/opt/text2sql-agent/.deploy/logs/*.log {
     daily
     rotate 14
     compress
@@ -171,7 +173,7 @@ mysqldump -h host -u user -p database | gzip > /backup/sales_$(date +%Y%m%d).sql
 ### ChromaDB 备份
 
 ```bash
-tar -czf /backup/chroma_$(date +%Y%m%d).tar.gz data/chroma/
+tar -czf /backup/chroma_$(date +%Y%m%d).tar.gz .deploy/chroma/
 ```
 
 ### 恢复流程
@@ -180,7 +182,7 @@ tar -czf /backup/chroma_$(date +%Y%m%d).tar.gz data/chroma/
 # SQLite
 gunzip -c /backup/sales_20260322.db.gz > data/demo_db/sales.db
 
-# ChromaDB
+# ChromaDB（恢复到 .deploy/chroma/）
 tar -xzf /backup/chroma_20260322.tar.gz
 ```
 
@@ -232,7 +234,7 @@ sqlite3 data/demo_db/sales.db "SELECT 1"
 ### ChromaDB 错误
 
 ```bash
-rm -rf data/chroma/schema_store
+rm -rf .deploy/chroma/schema_store
 python scripts/ingest_schema.py
 ```
 

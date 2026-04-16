@@ -29,7 +29,7 @@ jobs:
         DB_TYPE=sqlite
         DB_URL=sqlite:///data/demo_db/sales.db
         ALLOWED_TABLES=orders,products,order_items,customers
-        VECTOR_DB_PATH=./data/chroma
+        VECTOR_DB_PATH=./.deploy/chroma
         SQL_MAX_ROWS=200
         SQL_QUERY_TIMEOUT=15
         READONLY_MODE=true

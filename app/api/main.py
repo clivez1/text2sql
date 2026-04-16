@@ -8,6 +8,7 @@ Text2SQL Agent FastAPI 应用
 - GET /metrics - 获取可观测性指标
 - GET / - API 信息
 """
+
 from __future__ import annotations
 
 import time
@@ -58,6 +59,7 @@ app.add_middleware(APIKeyMiddleware)
 async def startup_event():
     """应用启动时执行 LLM 健康检测"""
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info("Starting LLM health check on startup...")
 
@@ -65,15 +67,27 @@ async def startup_event():
     register_error_handlers(app)
     logger.info("Error handlers registered.")
 
-    # 异步执行健康检测（不阻塞启动）
-    try:
-        status = check_llm_health(timeout_seconds=15.0)
-        if status.available:
-            logger.info(f"LLM is available: {status.provider} ({status.latency_ms:.0f}ms)")
-        else:
-            logger.warning(f"LLM is not available: {status.error}. Will use fallback.")
-    except Exception as e:
-        logger.warning(f"LLM health check failed: {e}. Will use fallback.")
+    # 健康检测（检查 index=1 和 index=2）
+    from app.config.settings import get_settings
+
+    settings = get_settings()
+
+    for idx in [1, 2]:
+        # 跳过未配置的 index
+        if idx == 2 and not settings.has_fallback():
+            continue
+        try:
+            status = check_llm_health(index=idx, timeout_seconds=15.0)
+            if status.available:
+                logger.info(
+                    f"LLM-{idx} is available: {status.provider} ({status.latency_ms:.0f}ms)"
+                )
+            else:
+                logger.warning(
+                    f"LLM-{idx} is not available: {status.error}. Will use fallback."
+                )
+        except Exception as e:
+            logger.warning(f"LLM-{idx} health check failed: {e}. Will use fallback.")
 
 
 @app.get("/", tags=["Root"])
@@ -87,7 +101,7 @@ def root() -> dict:
             "health": "GET /health",
             "schemas": "GET /schemas",
             "metrics": "GET /metrics",
-        }
+        },
     }
 
 
@@ -108,6 +122,7 @@ def health() -> HealthResponse:
 
     # 获取 LLM 状态
     from app.core.llm.health_check import get_llm_health_checker
+
     llm_checker = get_llm_health_checker()
     llm_status = llm_checker.get_status()
 
@@ -177,9 +192,7 @@ def ask(request: AskRequest) -> AskResponse:
             execution_time_ms=execution_time_ms,
             chart_config=result.chart_config,
         )
-        response.sql_explanation = (
-            f"{response.sql_explanation} | trace={trace_id} | pipeline_ms={pipeline_ms:.2f}"
-        )
+        response.sql_explanation = f"{response.sql_explanation} | trace={trace_id} | pipeline_ms={pipeline_ms:.2f}"
         end_request(trace_id, "success")
         return response
     except Exception as e:

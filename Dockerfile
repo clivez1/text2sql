@@ -23,8 +23,8 @@ COPY data/ ./data/
 COPY scripts/entrypoint-combined.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Create logs directory
-RUN mkdir -p logs
+# Create runtime directories (.deploy/ for ephemeral data)
+RUN mkdir -p .deploy/chroma .deploy/logs
 
 # Expose ports
 # 8501: Streamlit UI

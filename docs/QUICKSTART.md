@@ -94,7 +94,7 @@ python scripts/ingest_schema.py   # 导入 Schema 到向量库
 | 脚本 | 产出 |
 |------|------|
 | `init_demo_db.py` | `data/demo_db/sales.db` (500订单+50商品) |
-| `ingest_schema.py` | `data/chroma/schema_store/` (向量索引) |
+| `ingest_schema.py` | `.deploy/chroma/schema_store/` (向量索引) |
 
 ---
 
@@ -284,7 +284,7 @@ python scripts/init_demo_db.py
 ### Q4: ChromaDB 错误
 
 ```bash
-rm -rf data/chroma/schema_store
+rm -rf .deploy/chroma/schema_store
 python scripts/ingest_schema.py
 ```
 

@@ -23,7 +23,7 @@ class LocalVanna(ChromaDB_VectorStore, OpenAI_Chat):
 class LLMAdapter(Protocol):
     provider_name: str
 
-    def generate_sql(self, question: str) -> str: ...
+    def generate_sql(self, question: str, schema_context: str | None = None) -> str: ...
 
     def connectivity_check(self) -> str: ...
 
@@ -31,6 +31,9 @@ class LLMAdapter(Protocol):
 @dataclass(frozen=True)
 class OpenAICompatibleAdapter:
     config: LLMProviderConfig
+
+    # 类级别缓存：每个 (model, vector_db_path) 配置共享一个 Vanna 实例
+    _vanna_cache: dict[tuple[str, str], LocalVanna] = {}
 
     @property
     def provider_name(self) -> str:
@@ -44,6 +47,9 @@ class OpenAICompatibleAdapter:
         )
 
     def _build_vanna(self) -> LocalVanna:
+        cache_key = (self.config.model, self.config.vector_db_path)
+        if cache_key in self._vanna_cache:
+            return self._vanna_cache[cache_key]
         client = self._build_client()
         vn = LocalVanna(
             client=client,
@@ -76,11 +82,17 @@ class OpenAICompatibleAdapter:
             vn.train(question=question, sql=rule.sql)
             vn.train(documentation=f"示例说明：{rule.explanation}")
 
+        self._vanna_cache[cache_key] = vn
         return vn
 
-    def generate_sql(self, question: str) -> str:
+    def generate_sql(self, question: str, schema_context: str | None = None) -> str:
         vn = self._build_vanna()
-        prompt = build_prompt_bundle(question, retrieve_schema_context(question))
+        context = (
+            schema_context
+            if schema_context is not None
+            else retrieve_schema_context(question)
+        )
+        prompt = build_prompt_bundle(question, context)
         vn.train(documentation=prompt.system_prompt)
         vn.train(documentation=prompt.user_prompt)
         return vn.generate_sql(question)

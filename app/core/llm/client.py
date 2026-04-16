@@ -59,7 +59,7 @@ def _try_llm_with_fallback(
     fallback_start = time.perf_counter()
     try:
         adapter2 = get_llm_adapter(index=2)
-        sql = adapter2.generate_sql(question)
+        sql = adapter2.generate_sql(question, schema_context)
         fallback_ms = (time.perf_counter() - fallback_start) * 1000
         if not sql or "SELECT" not in sql.upper():
             raise RuntimeError(f"Fallback LLM returned non-SQL: {sql!r}")
@@ -128,7 +128,7 @@ def _generate_sql_legacy(question: str) -> tuple[str, str, str, str | None]:
     llm_start = time.perf_counter()
     try:
         adapter = get_llm_adapter()
-        sql = adapter.generate_sql(question)
+        sql = adapter.generate_sql(question, schema_context)
         llm_ms = (time.perf_counter() - llm_start) * 1000
         if not sql or "SELECT" not in sql.upper():
             raise RuntimeError(f"LLM returned non-SQL response: {sql!r}")
@@ -147,6 +147,15 @@ def _generate_sql_legacy(question: str) -> tuple[str, str, str, str | None]:
         )
         if result is not None and result[0] is not None:
             return result
+        # fallback 也失败了，优先用 LLM-2 的错误信息
+        blocked_reason = (
+            result[3]
+            if result
+            else (
+                f"LLM runtime failed: {exc} | retrieval_ms={retrieval_ms:.2f} | "
+                f"llm_ms={llm_ms:.2f} | schema_context={schema_context[:120]}"
+            )
+        )
 
     fallback_start = time.perf_counter()
     sql, explanation = generate_sql_by_rules(question)
@@ -191,8 +200,11 @@ def generate_sql_v2(question: str) -> tuple[str, str, str, str | None]:
 
     classification = classify_question(question)
 
-    # 路由决策 1：不需要 LLM，走规则路径
-    if not classification.needs_llm:
+    # 路由决策：不需要 LLM 或命中 fast-fallback，走规则路径
+    if not classification.needs_llm or should_fast_fallback(question):
+        fallback_reason = (
+            "rule_path" if not classification.needs_llm else "fast_fallback_rule_path"
+        )
         fallback_start = time.perf_counter()
         sql, explanation = generate_sql_by_rules(question)
         fallback_ms = (time.perf_counter() - fallback_start) * 1000
@@ -206,26 +218,9 @@ def generate_sql_v2(question: str) -> tuple[str, str, str, str | None]:
                 sql,
                 rule_hint=f"{explanation}；fast-fallback-v2；retrieval_ms={retrieval_ms:.2f}；fallback_ms={fallback_ms:.2f}",
             )
-        return sql, explanation, "fallback", "rule_path"
+        return sql, explanation, "fallback", fallback_reason
 
-    # 路由决策 2：fast fallback 关键字匹配
-    if should_fast_fallback(question):
-        fallback_start = time.perf_counter()
-        sql, explanation = generate_sql_by_rules(question)
-        fallback_ms = (time.perf_counter() - fallback_start) * 1000
-        if explanation == DEFAULT_EXPLANATION:
-            explanation = (
-                f"{DEFAULT_EXPLANATION}（fast-fallback-v2；retrieval_ms={retrieval_ms:.2f}；"
-                f"fallback_ms={fallback_ms:.2f}；schema_context={schema_context[:80]}）"
-            )
-        else:
-            explanation = build_sql_explanation(
-                sql,
-                rule_hint=f"{explanation}；fast-fallback-v2；retrieval_ms={retrieval_ms:.2f}；fallback_ms={fallback_ms:.2f}",
-            )
-        return sql, explanation, "fallback", "fast_fallback_rule_path"
-
-    # 路由决策 3：LLM 健康检查
+    # 路由决策：LLM 健康检查
     from app.core.llm.health_check import should_use_fallback
 
     if should_use_fallback():
@@ -249,7 +244,7 @@ def generate_sql_v2(question: str) -> tuple[str, str, str, str | None]:
     llm_start = time.perf_counter()
     try:
         adapter = get_llm_adapter()
-        sql = adapter.generate_sql(question)
+        sql = adapter.generate_sql(question, schema_context)
         llm_ms = (time.perf_counter() - llm_start) * 1000
         if not sql or "SELECT" not in sql.upper():
             raise RuntimeError(f"LLM returned non-SQL response: {sql!r}")
@@ -268,6 +263,15 @@ def generate_sql_v2(question: str) -> tuple[str, str, str, str | None]:
         )
         if result is not None and result[0] is not None:
             return result
+        # fallback 也失败了，优先用 LLM-2 的错误信息
+        blocked_reason = (
+            result[3]
+            if result
+            else (
+                f"LLM runtime failed: {exc} | retrieval_ms={retrieval_ms:.2f} | "
+                f"llm_ms={llm_ms:.2f} | schema_context={schema_context[:120]}"
+            )
+        )
 
     # LLM 失败，走 fallback
     fallback_start = time.perf_counter()
@@ -287,10 +291,6 @@ def generate_sql_v2(question: str) -> tuple[str, str, str, str | None]:
                 f"llm_ms={llm_ms:.2f}；fallback_ms={fallback_ms:.2f}"
             ),
         )
-    blocked_reason = (
-        f"LLM runtime failed: {exc} | retrieval_ms={retrieval_ms:.2f} | "
-        f"llm_ms={llm_ms:.2f} | schema_context={schema_context[:120]}"
-    )
     return sql, explanation, "fallback", blocked_reason
 
 
