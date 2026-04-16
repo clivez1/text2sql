@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables (SENSITIVE - NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+
+# Import keys (sensitive secrets - NEVER COMMIT)
+.impKey
+.impKey.local
+.impKey.*.local
+
+# Logs
+logs/
+*.log
+
+# Database runtime files (keep demo, ignore runtime)
+data/demo_db/*.db-shm
+data/demo_db/*.db-wal
+
+# ChromaDB vector store (generated, can be large)
+data/chroma/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MyPy
+.mypy_cache/

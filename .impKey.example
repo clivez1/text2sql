@@ -1,0 +1,40 @@
+# Import keys - 敏感配置模板（复制此文件为 .impKey，然后填入实际值）
+# 复制此文件为 .impKey，然后填入实际值
+
+LLM_PROVIDER={your_llm_provider}
+LLM_BASE_URL={your_llm_base_url}
+LLM_API_KEY={your_llm_api_key}
+LLM_MODEL={your_llm_model}
+
+OPENAI_API_KEY={your_openai_api_key}
+OPENAI_BASE_URL={your_openai_base_url}
+OPENAI_MODEL={your_openai_model}
+
+BAILIAN_API_KEY={your_bailian_api_key}
+BAILIAN_BASE_URL={your_bailian_base_url}
+BAILIAN_MODEL={your_bailian_model}
+
+ASTRON_API_KEY={your_astron_api_key}
+ASTRON_BASE_URL={your_astron_base_url}
+ASTRON_MODEL={your_astron_model}
+
+DB_URL={your_db_url}
+VECTOR_DB_PATH={your_vector_db_path}
+SQL_MAX_ROWS={your_sql_max_rows}
+SQL_QUERY_TIMEOUT={your_sql_query_timeout}
+READONLY_MODE={your_readonly_mode}
+ENABLE_HISTORY={your_enable_history}
+ENABLE_CHART={your_enable_chart}
+ENABLE_CLARIFICATION={your_enable_clarification}
+
+# MySQL 配置（如果使用 MySQL）
+# MYSQL_HOST=localhost
+# MYSQL_PORT=3306
+# MYSQL_USER=your_user
+# MYSQL_PASSWORD=your_password
+# MYSQL_DATABASE=your_database
+
+# API Key 认证配置
+API_KEY_ENABLED={your_api_key_enabled}
+API_KEYS={your_api_keys}
+API_KEY_HEADER={your_api_key_header}

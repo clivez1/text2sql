@@ -4,7 +4,10 @@ import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
+# Load .env first (contains placeholders for documentation)
 load_dotenv()
+# Then load .impKey (contains actual sensitive values, overrides .env)
+load_dotenv(dotenv_path=".impKey", override=True)
 
 
 @dataclass(frozen=True)
@@ -32,33 +35,41 @@ class Settings:
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-    bailian_api_key: str = os.getenv("BAILIAN_API_KEY") or os.getenv("OPENCLAW_BAILIAN_API_KEY", "")
-    bailian_base_url: str = os.getenv("BAILIAN_BASE_URL", "https://coding.dashscope.aliyuncs.com/v1")
+    bailian_api_key: str = os.getenv("BAILIAN_API_KEY") or os.getenv(
+        "OPENCLAW_BAILIAN_API_KEY", ""
+    )
+    bailian_base_url: str = os.getenv(
+        "BAILIAN_BASE_URL", "https://coding.dashscope.aliyuncs.com/v1"
+    )
     bailian_model: str = os.getenv("BAILIAN_MODEL", "glm-5")
 
     # Astron (xfyun-maas) 配置
-    astron_api_key: str = os.getenv("ASTRON_API_KEY") or os.getenv("OPENCLAW_ASTRON_API_KEY", "")
+    astron_api_key: str = os.getenv("ASTRON_API_KEY") or os.getenv(
+        "OPENCLAW_ASTRON_API_KEY", ""
+    )
     astron_base_url: str = os.getenv("ASTRON_BASE_URL", "https://maas-api.xfyun.cn/v1")
     astron_model: str = os.getenv("ASTRON_MODEL", "astron-code-latest")
 
     # 数据库配置 - 支持多数据库
     db_type: str = os.getenv("DB_TYPE", "sqlite")  # sqlite, mysql, postgresql
     db_url: str = os.getenv("DB_URL", "sqlite:///data/demo_db/sales.db")
-    
+
     # MySQL 专用配置
     mysql_host: str = os.getenv("MYSQL_HOST", "localhost")
     mysql_port: int = int(os.getenv("MYSQL_PORT", "3306"))
     mysql_user: str = os.getenv("MYSQL_USER", "")
     mysql_password: str = os.getenv("MYSQL_PASSWORD", "")
     mysql_database: str = os.getenv("MYSQL_DATABASE", "")
-    
+
     vector_db_path: str = os.getenv("VECTOR_DB_PATH", "./data/chroma")
     sql_max_rows: int = int(os.getenv("SQL_MAX_ROWS", "200"))
     sql_query_timeout: int = int(os.getenv("SQL_QUERY_TIMEOUT", "15"))
     readonly_mode: bool = os.getenv("READONLY_MODE", "true").lower() == "true"
-    
+
     # 允许的表名白名单（逗号分隔）
-    allowed_tables: str = os.getenv("ALLOWED_TABLES", "orders,products,order_items,customers")
+    allowed_tables: str = os.getenv(
+        "ALLOWED_TABLES", "orders,products,order_items,customers"
+    )
 
     def get_provider_config(self) -> LLMProviderConfig:
         provider = self.llm_provider
@@ -104,10 +115,14 @@ def get_settings() -> Settings:
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         openai_base_url=os.getenv("OPENAI_BASE_URL", ""),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        bailian_api_key=os.getenv("BAILIAN_API_KEY") or os.getenv("OPENCLAW_BAILIAN_API_KEY", ""),
-        bailian_base_url=os.getenv("BAILIAN_BASE_URL", "https://coding.dashscope.aliyuncs.com/v1"),
+        bailian_api_key=os.getenv("BAILIAN_API_KEY")
+        or os.getenv("OPENCLAW_BAILIAN_API_KEY", ""),
+        bailian_base_url=os.getenv(
+            "BAILIAN_BASE_URL", "https://coding.dashscope.aliyuncs.com/v1"
+        ),
         bailian_model=os.getenv("BAILIAN_MODEL", "glm-5"),
-        astron_api_key=os.getenv("ASTRON_API_KEY") or os.getenv("OPENCLAW_ASTRON_API_KEY", ""),
+        astron_api_key=os.getenv("ASTRON_API_KEY")
+        or os.getenv("OPENCLAW_ASTRON_API_KEY", ""),
         astron_base_url=os.getenv("ASTRON_BASE_URL", "https://maas-api.xfyun.cn/v1"),
         astron_model=os.getenv("ASTRON_MODEL", "astron-code-latest"),
         db_type=os.getenv("DB_TYPE", "sqlite"),
@@ -121,5 +136,7 @@ def get_settings() -> Settings:
         sql_max_rows=int(os.getenv("SQL_MAX_ROWS", "200")),
         sql_query_timeout=int(os.getenv("SQL_QUERY_TIMEOUT", "15")),
         readonly_mode=os.getenv("READONLY_MODE", "true").lower() == "true",
-        allowed_tables=os.getenv("ALLOWED_TABLES", "orders,products,order_items,customers"),
+        allowed_tables=os.getenv(
+            "ALLOWED_TABLES", "orders,products,order_items,customers"
+        ),
     )
