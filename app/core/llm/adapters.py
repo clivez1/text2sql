@@ -23,22 +23,25 @@ class LocalVanna(ChromaDB_VectorStore, OpenAI_Chat):
 class LLMAdapter(Protocol):
     provider_name: str
 
-    def generate_sql(self, question: str) -> str:
-        ...
+    def generate_sql(self, question: str) -> str: ...
 
-    def connectivity_check(self) -> str:
-        ...
+    def connectivity_check(self) -> str: ...
 
 
 @dataclass(frozen=True)
 class OpenAICompatibleAdapter:
     config: LLMProviderConfig
-    provider_name: str = "openai_compatible"
+
+    @property
+    def provider_name(self) -> str:
+        return self.config.provider
 
     def _build_client(self) -> OpenAI:
         if not self.config.api_key:
             raise RuntimeError(f"{self.provider_name} API key missing")
-        return OpenAI(api_key=self.config.api_key, base_url=self.config.base_url or None)
+        return OpenAI(
+            api_key=self.config.api_key, base_url=self.config.base_url or None
+        )
 
     def _build_vanna(self) -> LocalVanna:
         client = self._build_client()
@@ -59,12 +62,14 @@ class OpenAICompatibleAdapter:
             vn.train(ddl=ddl_path.read_text(encoding="utf-8"))
 
         vn.train(documentation=TEXT2SQL_SYSTEM_PROMPT)
-        vn.train(documentation=(
-            "业务说明：orders 是订单主表，order_items 是订单明细，products 是商品表。"
-            "销售额优先按 order_items.quantity * order_items.unit_price 汇总；"
-            "城市在 orders.city，区域在 orders.region，商品名在 products.product_name。"
-            "中文问题优先单表求解，只有明确涉及销量/销售额拆分时再联表。"
-        ))
+        vn.train(
+            documentation=(
+                "业务说明：orders 是订单主表，order_items 是订单明细，products 是商品表。"
+                "销售额优先按 order_items.quantity * order_items.unit_price 汇总；"
+                "城市在 orders.city，区域在 orders.region，商品名在 products.product_name。"
+                "中文问题优先单表求解，只有明确涉及销量/销售额拆分时再联表。"
+            )
+        )
 
         for rule in RULES:
             question = "，".join(rule.keywords)
@@ -91,8 +96,3 @@ class OpenAICompatibleAdapter:
             temperature=0,
         )
         return response.choices[0].message.content or ""
-
-
-@dataclass(frozen=True)
-class BailianCodePlanAdapter(OpenAICompatibleAdapter):
-    provider_name: str = "bailian_code_plan"

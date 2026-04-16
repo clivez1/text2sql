@@ -13,59 +13,33 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Create .impKey for testing
+    - name: Create .impKey from GitHub Secrets
       env:
-        # GitHub Secrets injected at runtime
-        LLM_PROVIDER: ${{ secrets.LLM_PROVIDER || 'astron' }}
-        LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
-        LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
-        LLM_MODEL: ${{ secrets.LLM_MODEL || '' }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
-        OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || '' }}
-        OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || '' }}
-        ASTRON_API_KEY: ${{ secrets.ASTRON_API_KEY || '' }}
-        ASTRON_BASE_URL: ${{ secrets.ASTRON_BASE_URL || '' }}
-        ASTRON_MODEL: ${{ secrets.ASTRON_MODEL || '' }}
+        LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+        LLM_MODEL: ${{ secrets.LLM_MODEL }}
       run: |
         cat > .impKey << 'EOF'
-APP_ENV=dev
-APP_HOST=0.0.0.0
-APP_PORT=8000
-
-LLM_PROVIDER=${LLM_PROVIDER}
-LLM_BASE_URL=${LLM_BASE_URL}
-LLM_API_KEY=${LLM_API_KEY}
-LLM_MODEL=${LLM_MODEL}
-
-OPENAI_API_KEY=${OPENAI_API_KEY}
-OPENAI_BASE_URL=${OPENAI_BASE_URL}
-OPENAI_MODEL=gpt-4o-mini
-
-BAILIAN_API_KEY=
-BAILIAN_BASE_URL=https://coding.dashscope.aliyuncs.com/v1
-BAILIAN_MODEL=glm-5
-
-ASTRON_API_KEY=${ASTRON_API_KEY}
-ASTRON_BASE_URL=${ASTRON_BASE_URL}
-ASTRON_MODEL=${ASTRON_MODEL}
-
-DB_TYPE=sqlite
-DB_URL=sqlite:///data/demo_db/sales.db
-ALLOWED_TABLES=orders,products,order_items,customers
-
-VECTOR_DB_PATH=./data/chroma
-SQL_MAX_ROWS=200
-SQL_QUERY_TIMEOUT=15
-READONLY_MODE=true
-
-API_KEY_ENABLED=false
-API_KEYS=
-API_KEY_HEADER=X-API-Key
-
-ENABLE_HISTORY=true
-ENABLE_CHART=true
-ENABLE_CLARIFICATION=false
-EOF
+        APP_ENV=dev
+        APP_HOST=0.0.0.0
+        APP_PORT=8000
+        LLM_API_KEY=${LLM_API_KEY}
+        LLM_BASE_URL=${LLM_BASE_URL}
+        LLM_MODEL=${LLM_MODEL}
+        DB_TYPE=sqlite
+        DB_URL=sqlite:///data/demo_db/sales.db
+        ALLOWED_TABLES=orders,products,order_items,customers
+        VECTOR_DB_PATH=./data/chroma
+        SQL_MAX_ROWS=200
+        SQL_QUERY_TIMEOUT=15
+        READONLY_MODE=true
+        API_KEY_ENABLED=false
+        API_KEYS=
+        API_KEY_HEADER=X-API-Key
+        ENABLE_HISTORY=true
+        ENABLE_CHART=true
+        ENABLE_CLARIFICATION=false
+        EOF
 
     - name: Set up Python
       uses: actions/setup-python@v5
