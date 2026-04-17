@@ -2,14 +2,16 @@ import pandas as pd
 import pytest
 
 from app.core.sql.executor import QueryExecutor
+from app.core.sql.db_abstraction import QueryResult, HealthStatus
 
 
 class DummyDB:
     def execute_query(self, sql):
-        return pd.DataFrame([{"x": 1}])
+        df = pd.DataFrame([{"x": 1}])
+        return QueryResult(success=True, data=df, row_count=1, columns=["x"])
 
     def test_connection(self):
-        return True, "ok"
+        return HealthStatus(is_healthy=True, db_type="sqlite", latency_ms=0.0, message="ok")
 
     def get_schema_info(self):
         return "schema"

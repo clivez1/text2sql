@@ -53,29 +53,22 @@ def test_load_schema_documents_returns_documents(monkeypatch):
 
 
 def test_retrieve_schema_context_prefers_query_result(monkeypatch):
-    class FakeCollection:
-        def query(self, query_texts, n_results):
-            return {"documents": [["orders(...)", "products(...)"]]}
+    class FakeRetriever:
+        def retrieve(self, question, limit=4):
+            return "orders(...)\n\nproducts(...)"
 
-    class FakeClient:
-        def get_collection(self, name):
-            return FakeCollection()
-
-    monkeypatch.setattr(schema_loader.chromadb, "PersistentClient", lambda path: FakeClient())
+    monkeypatch.setattr(schema_loader, "_retriever_instance", None)
+    monkeypatch.setattr(schema_loader, "get_retriever", lambda: FakeRetriever())
     result = schema_loader.retrieve_schema_context("订单和商品")
     assert "orders" in result and "products" in result
 
 
 def test_retrieve_schema_context_falls_back_to_keyword_tables(monkeypatch):
-    class FakeCollection:
-        def query(self, query_texts, n_results):
-            raise RuntimeError("boom")
+    def failing_retriever():
+        raise RuntimeError("boom")
 
-    class FakeClient:
-        def get_collection(self, name):
-            return FakeCollection()
-
-    monkeypatch.setattr(schema_loader.chromadb, "PersistentClient", lambda path: FakeClient())
+    monkeypatch.setattr(schema_loader, "_retriever_instance", None)
+    monkeypatch.setattr(schema_loader, "get_retriever", failing_retriever)
     monkeypatch.setattr(schema_loader, "load_schema_text", lambda: "DDL CONTENT")
     result = schema_loader.retrieve_schema_context("订单 商品 数量")
     assert "orders(" in result
@@ -84,15 +77,11 @@ def test_retrieve_schema_context_falls_back_to_keyword_tables(monkeypatch):
 
 
 def test_retrieve_schema_context_falls_back_to_ddl(monkeypatch):
-    class FakeCollection:
-        def query(self, query_texts, n_results):
-            raise RuntimeError("boom")
+    def failing_retriever():
+        raise RuntimeError("boom")
 
-    class FakeClient:
-        def get_collection(self, name):
-            return FakeCollection()
-
-    monkeypatch.setattr(schema_loader.chromadb, "PersistentClient", lambda path: FakeClient())
+    monkeypatch.setattr(schema_loader, "_retriever_instance", None)
+    monkeypatch.setattr(schema_loader, "get_retriever", failing_retriever)
     monkeypatch.setattr(schema_loader, "load_schema_text", lambda: "X" * 2000)
     result = schema_loader.retrieve_schema_context("unrelated question")
     assert result == "X" * 1200
