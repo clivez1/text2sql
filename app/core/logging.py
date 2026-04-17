@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from pathlib import Path
 
@@ -34,7 +34,7 @@ class CustomJsonFormatter(JsonFormatter if HAS_JSON_LOGGER else logging.Formatte
     def format(self, record: logging.LogRecord) -> str:
         """格式化日志记录"""
         log_data = {
-            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

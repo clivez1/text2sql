@@ -8,6 +8,8 @@
 - [安装步骤](#安装步骤)
 - [验证功能](#验证功能)
 - [Docker 快速部署](#docker-快速部署)
+  - [一键启动](#一键启动推荐)
+  - [Windows 下 Docker Desktop 测试部署](#windows-下-docker-desktop-测试部署)
 - [常见问题](#常见问题)
 
 ---
@@ -244,6 +246,71 @@ docker exec -it text2sql-combined python scripts/ingest_schema.py
 docker-compose up -d ui api
 ```
 
+### Windows 下 Docker Desktop 测试部署
+
+若你在 Windows 上使用 Docker Desktop（推荐启用 WSL2 集成），可按以下步骤进行本地部署测试。
+
+**前置要求**：
+- 已安装 Docker Desktop 并启用 WSL2 后端
+- 已在 Docker Desktop 设置中开启对项目所在驱动器（如 D:\）的文件共享
+
+**部署步骤**：
+
+```powershell
+# 1. 进入项目根目录
+cd D:\AI\codeSpace\text2sql-0412
+
+# 2. 清理旧容器（如有）
+docker-compose down -v
+
+# 3. 启动 combined 模式（UI + API 同容器）
+docker-compose up -d combined
+
+# 4. 查看启动日志
+docker-compose logs -f combined
+```
+
+**验证访问**：
+
+| 服务 | 地址 |
+|------|------|
+| Streamlit UI | http://localhost:8501 |
+| FastAPI Docs | http://localhost:8000/docs |
+| 健康检查 | http://localhost:8000/health |
+
+**首次初始化数据**：
+
+```powershell
+# 初始化 Demo 数据库
+docker exec -it text2sql-combined python scripts/init_demo_db.py
+
+# 导入 Schema 到向量库
+docker exec -it text2sql-combined python scripts/ingest_schema.py
+```
+
+**运行时数据与隐私数据说明**：
+
+| 目录 | 用途 | 是否入 Git |
+|------|------|-----------|
+| `.deploy/` | 运行时数据（向量库、日志） | ❌ 不入 |
+| `datasets/` | 高隐私测试数据 | ❌ 不入 |
+| `data/` | Demo 演示数据 | ✅ 入 |
+
+> ⚠️ **重要**：`.deploy/` 为运行时目录，容器重建时可能被覆盖。高隐私测试数据应放在 `datasets/` 或外部加密存储，并通过卷挂载映射到容器。
+
+**常见问题排查**：
+
+```powershell
+# 查看容器日志
+docker-compose logs -f combined
+
+# 检查容器状态
+docker ps -a
+
+# 进入容器调试
+docker exec -it text2sql-combined bash
+```
+
 ---
 
 ## 常见问题
@@ -335,6 +402,7 @@ READONLY_MODE=false
 
 | 日期 | 内容 |
 |------|------|
+| 2026-04-17 | 新增 Windows Docker Desktop 部署说明 |
 | 2026-04-17 | Round 6: 移除 Vanna 依赖, N-Provider 配置更新 |
 | 2026-04-15 | v3.0 大更新：YAML 规则、图表推荐、Docker 部署、新 API 格式 |
 | 2026-04-11 | 工程化收口：覆盖率 80%、可观测性、认证骨架 |
