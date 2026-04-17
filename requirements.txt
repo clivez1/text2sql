@@ -11,3 +11,4 @@ fpdf>=1.7,<2
 openpyxl>=3.1,<4
 python-json-logger>=2.0,<3
 tenacity>=8.0,<9
+sqlparse>=0.4,<1
