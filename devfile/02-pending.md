@@ -4,9 +4,17 @@
 
 ---
 
-## 已完成：Round 5 部署目录重构 + 遗留修复
+## 已完成：Round 6 全面重构
 
-Round 5 主体 + 遗留旧路径修复均已完成，详见 `devfile/01-completed.md`。
+Round 6（移除 Vanna + N-Provider Fallback + 代码清理）已完成，详见 `devfile/01-completed.md`。
+
+---
+
+## 待修复（Nice-to-have）
+
+| 问题 | 说明 |
+|------|------|
+| 修复 7 个预存测试失败 | 3 executor API mismatch + 2 missing openpyxl + 2 missing Linux font on Windows |
 
 ---
 
@@ -15,7 +23,6 @@ Round 5 主体 + 遗留旧路径修复均已完成，详见 `devfile/01-complete
 | 方向 | 说明 |
 |------|------|
 | Pipeline Stage 化 | 编排能力增强 |
-| LCEL Chain 替代 Vanna | R2 目标 |
 | FAISS / PGVector 实现 | 等 benchmark 数据驱动 |
 | JWT 认证替代 API Key | 多用户/租户场景 |
 | Prometheus / Grafana | 企业级可观测性 |

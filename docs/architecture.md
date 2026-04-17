@@ -157,19 +157,33 @@ text2sql-agent/
 
 ```
 Question
-  ↓
+   ↓
 QuestionClassifier
-  ↓
+   ↓
 SchemaLoader / LocalSemantics
-  ↓
+   ↓
 Rule SQL / Template SQL / Fast Fallback
-  ↓
-(only if needed) LLM Adapter
-  ↓
+   ↓
+(only if needed) LLM Adapter (N-Provider Cascade)
+   │
+   ├─→ Provider 1 (LLM_API_KEY_1)
+   │       ↓ timeout/error
+   ├─→ Provider 2 (LLM_API_KEY_2)
+   │       ↓ timeout/error
+   ├─→ ...
+   │       ↓
+   └─→ Provider N → 规则匹配 Fallback
+   ↓
 SQL Guard
-  ↓
+   ↓
 Executor
 ```
+
+**LLM 调用方式**：
+- 所有 LLM 调用通过 `OpenAICompatibleAdapter` 统一处理
+- 支持配置 N 个 Provider（`LLM_API_KEY_1`, `LLM_API_KEY_2`, ...）
+- Provider 类型由 `LLM_BASE_URL_N` 自动检测，无需手动指定
+- 当 Provider 1 失败时自动尝试 Provider 2，以此类推
 
 **本地优先的原因**：
 - 测试环境默认不能依赖有效 API Key
@@ -337,18 +351,23 @@ Step 8: 构建响应 (schemas.py → create_ask_response)
 
 ### 1. 新增 LLM Provider
 
-```python
-# 1. 在 adapters.py 创建适配器
-@dataclass(frozen=True)
-class MyLLMAdapter:
-    provider_name: str = "my_llm"
-    
-    def generate_sql(self, question: str) -> str:
-        ...
+添加新的 LLM Provider 无需修改代码，只需配置环境变量：
 
-# 2. 在 settings.py 添加配置
-# 3. 在 client.py 注册 Provider
+```bash
+# 添加 Provider N+1
+LLM_API_KEY_4=sk-your-new-key
+LLM_BASE_URL_4=https://api.new-provider.com/v1
+LLM_MODEL_4=model-name
 ```
+
+系统会自动：
+1. 检测新 Provider 配置
+2. 将其加入级联队列
+3. 在前面的 Provider 失败时自动尝试
+
+**支持的协议**：
+- OpenAI 兼容协议（默认）
+- 任何提供 OpenAI 兼容 API 的服务（DeepSeek、Moonshot、百炼等）
 
 ### 2. 新增数据库类型
 
@@ -372,7 +391,7 @@ class ClickHouseConnector(DatabaseConnector):
 
 ## 设计决策
 
-### 1. 为什么采用“本地优先 + LLM 补充”路线？
+### 1. 为什么采用"本地优先 + LLM 补充"路线？
 
 | 方案 | 优点 | 缺点 |
 |------|------|------|
@@ -380,16 +399,30 @@ class ClickHouseConnector(DatabaseConnector):
 | 直接 LLM 主路径 | 灵活、对开放式问题覆盖更广 | 易受 API、网络、时延与成本影响 |
 | 纯规则系统 | 确定性强 | 对复杂自然语言理解能力有限 |
 
-### 2. 为什么使用双层 Fallback？
+### 2. 为什么移除 Vanna？
+
+**原因**：
+- Vanna 项目已 archived，不再维护
+- Vanna 2.0 API 与 1.x 不兼容，升级成本高
+- 本项目仅将 Vanna 作为 OpenAI SDK 的薄封装层，未使用其 RAG/训练功能
+- 直接使用 OpenAI SDK 更轻量、更可控
+
+**替代方案**：
+- 使用 `openai` 包直接调用 OpenAI 兼容 API
+- 通过 `OpenAICompatibleAdapter` 统一处理所有 LLM 调用
+- N-Provider 级联提供比单 Provider 更好的容错能力
+
+### 3. 为什么使用 N-Provider 级联？
 
 ```
-LLM → 规则匹配 → 默认 SQL
+Provider 1 → Provider 2 → ... → Provider N → 规则匹配
 ```
 
 **原因**：
-- LLM 可能失败（API 限流、网络问题）
-- 规则匹配提供确定性保障
-- 默认 SQL 确保系统永不崩溃
+- 单 Provider 存在单点故障风险
+- 不同 Provider 有不同的限流策略和可用性
+- 级联提供更好的容错能力
+- 配置简单，无需修改代码
 
 ---
 
@@ -481,6 +514,7 @@ graph LR
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-04-17 | Round 6: 移除 Vanna, N-Provider cascade, 代码清理 |
 | 2026-03-22 | 新增 Mermaid 流程图 |
 | 2026-03-22 | 细化架构文档 |
 | 2026-03-20 | 创建架构文档初版 |

@@ -30,21 +30,77 @@ class LLMProviderConfig:
     vector_db_path: str
 
 
+def _parse_providers(db_url: str, vector_db_path: str) -> tuple[LLMProviderConfig, ...]:
+    """Parse LLM providers from environment variables.
+
+    Detection order:
+    - Index 1: LLM_API_KEY_1 (preferred) or LLM_API_KEY (backward compatible)
+    - Index 2+: LLM_API_KEY_2, LLM_API_KEY_3, ... until first gap
+    """
+    providers: list[LLMProviderConfig] = []
+
+    # Index 1: prefer LLM_API_KEY_1, fall back to LLM_API_KEY (no suffix)
+    api_key_1 = os.getenv("LLM_API_KEY_1") or os.getenv("LLM_API_KEY", "")
+    if api_key_1:
+        base_url_1 = os.getenv("LLM_BASE_URL_1") or os.getenv("LLM_BASE_URL", "")
+        model_1 = os.getenv("LLM_MODEL_1") or os.getenv("LLM_MODEL", "")
+        provider_1 = _detect_provider(base_url_1)
+
+        if not model_1:
+            defaults = {
+                "anthropic": "claude-sonnet-4-20250514",
+                "openai_compatible": "gpt-4o-mini",
+            }
+            model_1 = defaults.get(provider_1, "gpt-4o-mini")
+
+        providers.append(
+            LLMProviderConfig(
+                provider=provider_1,
+                base_url=base_url_1,
+                api_key=api_key_1,
+                model=model_1,
+                db_url=db_url,
+                vector_db_path=vector_db_path,
+            )
+        )
+
+    # Index 2+: scan LLM_API_KEY_2, _3, _4, ... until first gap
+    idx = 2
+    while True:
+        api_key = os.getenv(f"LLM_API_KEY_{idx}", "")
+        if not api_key:
+            break
+        base_url = os.getenv(f"LLM_BASE_URL_{idx}", "")
+        model = os.getenv(f"LLM_MODEL_{idx}", "")
+        provider = _detect_provider(base_url)
+
+        if not model:
+            defaults = {
+                "anthropic": "claude-sonnet-4-20250514",
+                "openai_compatible": "gpt-4o-mini",
+            }
+            model = defaults.get(provider, "gpt-4o-mini")
+
+        providers.append(
+            LLMProviderConfig(
+                provider=provider,
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                db_url=db_url,
+                vector_db_path=vector_db_path,
+            )
+        )
+        idx += 1
+
+    return tuple(providers)
+
+
 @dataclass(frozen=True)
 class Settings:
     app_env: str = os.getenv("APP_ENV", "dev")
     app_host: str = os.getenv("APP_HOST", "0.0.0.0")
     app_port: int = int(os.getenv("APP_PORT", "8000"))
-
-    # Primary LLM config
-    llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_base_url: str = os.getenv("LLM_BASE_URL", "")
-    llm_model: str = os.getenv("LLM_MODEL", "")
-
-    # Fallback LLM config (optional, used when primary fails)
-    llm_api_key_2: str = os.getenv("LLM_API_KEY_2", "")
-    llm_base_url_2: str = os.getenv("LLM_BASE_URL_2", "")
-    llm_model_2: str = os.getenv("LLM_MODEL_2", "")
 
     # Database
     db_type: str = os.getenv("DB_TYPE", "sqlite")
@@ -63,63 +119,51 @@ class Settings:
         "ALLOWED_TABLES", "orders,products,order_items,customers"
     )
 
+    # LLM providers stored as a tuple, parsed at construction time
+    _llm_providers: tuple[LLMProviderConfig, ...] = ()
+
+    @property
+    def provider_count(self) -> int:
+        """Return total number of configured LLM providers."""
+        return len(self._llm_providers)
+
     def get_provider_config(self, index: int = 1) -> LLMProviderConfig:
-        if index == 1:
-            api_key = self.llm_api_key
-            base_url = self.llm_base_url
-            model = self.llm_model
-        elif index == 2:
-            api_key = self.llm_api_key_2
-            base_url = self.llm_base_url_2
-            model = self.llm_model_2
-        else:
-            raise ValueError(f"Invalid provider index: {index}")
-
-        provider = _detect_provider(base_url)
-
-        if not model:
-            defaults = {
-                "anthropic": "claude-sonnet-4-20250514",
-                "openai_compatible": "gpt-4o-mini",
-            }
-            model = defaults.get(provider, "gpt-4o-mini")
-
-        return LLMProviderConfig(
-            provider=provider,
-            base_url=base_url,
-            api_key=api_key,
-            model=model,
-            db_url=self.db_url,
-            vector_db_path=self.vector_db_path,
-        )
+        """Get provider config. index is 1-based."""
+        if index < 1 or index > len(self._llm_providers):
+            raise ValueError(
+                f"Provider index {index} out of range (1-{len(self._llm_providers)})"
+            )
+        return self._llm_providers[index - 1]
 
     def has_fallback(self) -> bool:
-        return bool(self.llm_api_key_2 and self.llm_base_url_2)
+        """Return True if more than one provider is configured."""
+        return len(self._llm_providers) > 1
 
 
 def get_settings() -> Settings:
+    """Create Settings instance with dynamically parsed LLM providers."""
+    db_url = os.getenv("DB_URL", "sqlite:///data/demo_db/sales.db")
+    vector_db_path = os.getenv("VECTOR_DB_PATH", "./.deploy/chroma")
+
+    providers = _parse_providers(db_url, vector_db_path)
+
     return Settings(
         app_env=os.getenv("APP_ENV", "dev"),
         app_host=os.getenv("APP_HOST", "0.0.0.0"),
         app_port=int(os.getenv("APP_PORT", "8000")),
-        llm_api_key=os.getenv("LLM_API_KEY", ""),
-        llm_base_url=os.getenv("LLM_BASE_URL", ""),
-        llm_model=os.getenv("LLM_MODEL", ""),
-        llm_api_key_2=os.getenv("LLM_API_KEY_2", ""),
-        llm_base_url_2=os.getenv("LLM_BASE_URL_2", ""),
-        llm_model_2=os.getenv("LLM_MODEL_2", ""),
         db_type=os.getenv("DB_TYPE", "sqlite"),
-        db_url=os.getenv("DB_URL", "sqlite:///data/demo_db/sales.db"),
+        db_url=db_url,
         mysql_host=os.getenv("MYSQL_HOST", "localhost"),
         mysql_port=int(os.getenv("MYSQL_PORT", "3306")),
         mysql_user=os.getenv("MYSQL_USER", ""),
         mysql_password=os.getenv("MYSQL_PASSWORD", ""),
         mysql_database=os.getenv("MYSQL_DATABASE", ""),
-        vector_db_path=os.getenv("VECTOR_DB_PATH", "./.deploy/chroma"),
+        vector_db_path=vector_db_path,
         sql_max_rows=int(os.getenv("SQL_MAX_ROWS", "200")),
         sql_query_timeout=int(os.getenv("SQL_QUERY_TIMEOUT", "15")),
         readonly_mode=os.getenv("READONLY_MODE", "true").lower() == "true",
         allowed_tables=os.getenv(
             "ALLOWED_TABLES", "orders,products,order_items,customers"
         ),
+        _llm_providers=providers,
     )

@@ -2,14 +2,14 @@
 LLM 健康检测模块
 
 在应用启动时主动检测 LLM API 可用性，避免每次请求被动等待超时。
-支持多模型检测（index=1 和 index=2）。
+支持多模型检测（index=1..N）。
 """
 
 from __future__ import annotations
 
 import logging
+import threading
 import time
-import os
 from dataclasses import dataclass
 from typing import Optional
 
@@ -46,14 +46,14 @@ class LLMHealthChecker:
 
         # 存储每个 index 的健康状态
         self._statuses: dict[int, LLMHealthStatus] = {}
-        self._check_lock = logging.Lock()
+        self._check_lock = threading.Lock()
 
     def check(self, index: int = 1, timeout_seconds: float = 10.0) -> LLMHealthStatus:
         """
         执行 LLM 健康检测（单模型）
 
         Args:
-            index: 模型索引（1=primary, 2=fallback）
+            index: 模型索引（1=primary, 2=fallback, ...）
             timeout_seconds: 检测超时时间
 
         Returns:
@@ -63,24 +63,29 @@ class LLMHealthChecker:
         from app.config.settings import get_settings
 
         settings = get_settings()
-        # 检查该 index 是否有配置
-        if index == 1 and not settings.llm_api_key:
+
+        # 使用 settings 验证 index 并获取配置
+        try:
+            config = settings.get_provider_config(index)
+        except ValueError:
+            # Index out of range
             status = LLMHealthStatus(
                 provider="none",
                 available=False,
                 latency_ms=0,
-                error="No API key configured for index=1",
+                error=f"Provider index={index} not configured",
                 last_check_time=time.time(),
                 index=index,
             )
             self._statuses[index] = status
             return status
-        if index == 2 and not settings.llm_api_key_2:
+
+        if not config.api_key:
             status = LLMHealthStatus(
                 provider="none",
                 available=False,
                 latency_ms=0,
-                error="No API key configured for index=2",
+                error=f"No API key for index={index}",
                 last_check_time=time.time(),
                 index=index,
             )
@@ -95,8 +100,6 @@ class LLMHealthChecker:
             logger.info(f"Checking LLM health for provider: {provider} (index={index})")
 
             # 使用线程超时（兼容 Windows）
-            import threading
-
             result_holder = [None]
             error_holder = [None]
 
@@ -174,7 +177,7 @@ class LLMHealthChecker:
         return status.available if status else False
 
     def should_use_fallback(self) -> bool:
-        """判断 primary 不可用时是否应该使用 fallback"""
+        """Primary (index=1) is unavailable."""
         return not self.is_available(index=1)
 
     def reset(self, index: Optional[int] = None):
@@ -210,3 +213,14 @@ def is_llm_available(index: int = 1) -> bool:
 def should_use_fallback() -> bool:
     """判断是否应该使用 fallback"""
     return get_llm_health_checker().should_use_fallback()
+
+
+def check_all_providers(timeout_seconds: float = 10.0) -> list[LLMHealthStatus]:
+    """Check health of all configured providers."""
+    from app.config.settings import get_settings
+
+    checker = get_llm_health_checker()
+    settings = get_settings()
+    return [
+        checker.check(i, timeout_seconds) for i in range(1, settings.provider_count + 1)
+    ]

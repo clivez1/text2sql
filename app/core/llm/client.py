@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import os
 import time
 import logging
 
 from app.core.llm.adapters import LLMAdapter, OpenAICompatibleAdapter
 from app.core.llm.prompts import build_sql_explanation
 from app.core.nlu.question_classifier import classify_question
-from app.core.retrieval.schema_loader import retrieve_schema_context
 from app.core.sql.generator import DEFAULT_EXPLANATION, generate_sql_by_rules
 from app.config.settings import get_settings
 
@@ -43,53 +41,82 @@ def get_llm_adapter(index: int = 1) -> LLMAdapter:
     return OpenAICompatibleAdapter(config=config)
 
 
-def _try_llm_with_fallback(
+def _try_llm_cascade(
     question: str,
     schema_context: str,
     retrieval_ms: float,
     llm_ms: float,
-    exc: Exception,
-) -> tuple:
-    """Try fallback LLM (index=2) if primary fails."""
+    primary_error: Exception,
+) -> tuple | None:
+    """
+    Try fallback providers 2..N in sequence after primary provider fails.
+
+    Returns:
+        tuple (sql, explanation, provider_name, None) on success
+        None if all fallback providers exhausted
+    """
     settings = get_settings()
     if not settings.has_fallback():
         return None
 
-    logger.warning(f"Primary LLM failed ({exc}), trying fallback...")
-    fallback_start = time.perf_counter()
-    try:
-        adapter2 = get_llm_adapter(index=2)
-        sql = adapter2.generate_sql(question, schema_context)
-        fallback_ms = (time.perf_counter() - fallback_start) * 1000
-        if not sql or "SELECT" not in sql.upper():
-            raise RuntimeError(f"Fallback LLM returned non-SQL: {sql!r}")
-        explanation = build_sql_explanation(
-            sql,
-            rule_hint=(
-                f"已结合 schema 检索上下文生成 SQL；provider={adapter2.provider_name}; "
-                f"retrieval_ms={retrieval_ms:.2f}; llm_ms={llm_ms:.2f}; fallback_ms={fallback_ms:.2f}"
-            ),
-        )
-        return sql, explanation, adapter2.provider_name, None
-    except Exception as exc2:
-        fallback_ms = (time.perf_counter() - fallback_start) * 1000
-        blocked_reason = (
-            f"LLM-1 failed: {exc} | LLM-2 failed: {exc2} | "
-            f"retrieval_ms={retrieval_ms:.2f} | llm_ms={llm_ms:.2f} | fallback_ms={fallback_ms:.2f}"
-        )
-        return None, None, None, blocked_reason
+    logger.warning(f"Primary LLM failed ({primary_error}), trying fallback cascade...")
+
+    for idx in range(2, settings.provider_count + 1):
+        fallback_start = time.perf_counter()
+        try:
+            adapter = get_llm_adapter(index=idx)
+            sql = adapter.generate_sql(question, schema_context)
+            fallback_ms = (time.perf_counter() - fallback_start) * 1000
+            if not sql or "SELECT" not in sql.upper():
+                raise RuntimeError(f"Provider {idx} returned non-SQL: {sql!r}")
+            explanation = build_sql_explanation(
+                sql,
+                rule_hint=(
+                    f"已结合 schema 检索上下文生成 SQL；provider={adapter.provider_name}; "
+                    f"fallback_index={idx}; retrieval_ms={retrieval_ms:.2f}; "
+                    f"llm_ms={llm_ms:.2f}; fallback_ms={fallback_ms:.2f}"
+                ),
+            )
+            return sql, explanation, adapter.provider_name, None
+        except Exception as exc:
+            fallback_ms = (time.perf_counter() - fallback_start) * 1000
+            logger.warning(f"Fallback provider {idx} failed: {exc}")
+            continue
+
+    # All fallback providers exhausted
+    return None
 
 
-def _generate_sql_legacy(question: str) -> tuple[str, str, str, str | None]:
+def generate_sql(question: str) -> tuple[str, str, str, str | None]:
     """
-    旧版 generate_sql 逻辑（保留用于测试保护网）。
-    所有性能埋点均在 explanation 字符串中。
+    Generate SQL from natural language question.
+
+    Flow:
+    1. Retrieve schema context via get_retriever()
+    2. Check if fast-fallback (rule-based) path applies
+    3. Check LLM health status
+    4. Try primary LLM provider
+    5. On failure, cascade through fallback providers 2..N
+    6. If all LLMs fail, fall back to rule-based generation
+
+    Returns:
+        tuple (sql, explanation, provider_name, blocked_reason)
     """
+    # Step 1: Retrieve schema context
+    from app.core.retrieval.schema_loader import get_retriever
+
     retrieval_start = time.perf_counter()
-    schema_context = retrieve_schema_context(question)
+    retriever = get_retriever()
+    schema_context = retriever.retrieve(question)
     retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
 
-    if should_fast_fallback(question):
+    classification = classify_question(question)
+
+    # Step 2: Fast-fallback path (rule-based)
+    if not classification.needs_llm or should_fast_fallback(question):
+        fallback_reason = (
+            "rule_path" if not classification.needs_llm else "fast_fallback_rule_path"
+        )
         fallback_start = time.perf_counter()
         sql, explanation = generate_sql_by_rules(question)
         fallback_ms = (time.perf_counter() - fallback_start) * 1000
@@ -103,9 +130,9 @@ def _generate_sql_legacy(question: str) -> tuple[str, str, str, str | None]:
                 sql,
                 rule_hint=f"{explanation}；fast-fallback；retrieval_ms={retrieval_ms:.2f}；fallback_ms={fallback_ms:.2f}",
             )
-        return sql, explanation, "fallback", "fast_fallback_rule_path"
+        return sql, explanation, "fallback", fallback_reason
 
-    # 检查 LLM 健康状态
+    # Step 3: Check LLM health status
     from app.core.llm.health_check import should_use_fallback
 
     if should_use_fallback():
@@ -125,6 +152,7 @@ def _generate_sql_legacy(question: str) -> tuple[str, str, str, str | None]:
             )
         return sql, explanation, "fallback", "llm_unavailable"
 
+    # Step 4: Try primary LLM provider
     llm_start = time.perf_counter()
     try:
         adapter = get_llm_adapter()
@@ -142,12 +170,13 @@ def _generate_sql_legacy(question: str) -> tuple[str, str, str, str | None]:
         return sql, explanation, adapter.provider_name, None
     except Exception as exc:
         llm_ms = (time.perf_counter() - llm_start) * 1000
-        result = _try_llm_with_fallback(
-            question, schema_context, retrieval_ms, llm_ms, exc
-        )
+
+        # Step 5: Try fallback cascade 2..N
+        result = _try_llm_cascade(question, schema_context, retrieval_ms, llm_ms, exc)
         if result is not None and result[0] is not None:
             return result
-        # fallback 也失败了，优先用 LLM-2 的错误信息
+
+        # Step 6: All LLMs failed, use rule-based fallback
         blocked_reason = (
             result[3]
             if result
@@ -156,159 +185,24 @@ def _generate_sql_legacy(question: str) -> tuple[str, str, str, str | None]:
                 f"llm_ms={llm_ms:.2f} | schema_context={schema_context[:120]}"
             )
         )
-
-    fallback_start = time.perf_counter()
-    sql, explanation = generate_sql_by_rules(question)
-    fallback_ms = (time.perf_counter() - fallback_start) * 1000
-    if explanation == DEFAULT_EXPLANATION:
-        explanation = (
-            f"{DEFAULT_EXPLANATION}（fallback；retrieval_ms={retrieval_ms:.2f}；"
-            f"llm_ms={llm_ms:.2f}；fallback_ms={fallback_ms:.2f}；"
-            f"schema_context={schema_context[:80]}）"
-        )
-    else:
-        explanation = build_sql_explanation(
-            sql,
-            rule_hint=(
-                f"{explanation}；retrieval_ms={retrieval_ms:.2f}；"
-                f"llm_ms={llm_ms:.2f}；fallback_ms={fallback_ms:.2f}"
-            ),
-        )
-    blocked_reason = (
-        f"LLM runtime failed: {exc} | retrieval_ms={retrieval_ms:.2f} | "
-        f"llm_ms={llm_ms:.2f} | schema_context={schema_context[:120]}"
-    )
-    return sql, explanation, "fallback", blocked_reason
-
-
-def generate_sql_v2(question: str) -> tuple[str, str, str, str | None]:
-    """
-    新版 generate_sql，使用 SchemaRetriever 注入 + MetricsCollector。
-    通过 USE_GENERATE_SQL_V2=true 环境变量可切换到此版本。
-
-    与旧版的差异：
-    - 通过 get_retriever() 注入 retriever（而非直接调用 retrieve_schema_context）
-    - 性能埋点结构化（暂未迁移到 MetricsCollector，保持 explanation 格式）
-    - 路由逻辑相同，代码结构更清晰
-    """
-    from app.core.retrieval.schema_loader import get_retriever
-
-    retrieval_start = time.perf_counter()
-    retriever = get_retriever()
-    schema_context = retriever.retrieve(question)
-    retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
-
-    classification = classify_question(question)
-
-    # 路由决策：不需要 LLM 或命中 fast-fallback，走规则路径
-    if not classification.needs_llm or should_fast_fallback(question):
-        fallback_reason = (
-            "rule_path" if not classification.needs_llm else "fast_fallback_rule_path"
-        )
         fallback_start = time.perf_counter()
         sql, explanation = generate_sql_by_rules(question)
         fallback_ms = (time.perf_counter() - fallback_start) * 1000
         if explanation == DEFAULT_EXPLANATION:
             explanation = (
-                f"{DEFAULT_EXPLANATION}（fast-fallback-v2；retrieval_ms={retrieval_ms:.2f}；"
-                f"fallback_ms={fallback_ms:.2f}；schema_context={schema_context[:80]}）"
+                f"{DEFAULT_EXPLANATION}（fallback；retrieval_ms={retrieval_ms:.2f}；"
+                f"llm_ms={llm_ms:.2f}；fallback_ms={fallback_ms:.2f}；"
+                f"schema_context={schema_context[:80]}）"
             )
         else:
             explanation = build_sql_explanation(
                 sql,
-                rule_hint=f"{explanation}；fast-fallback-v2；retrieval_ms={retrieval_ms:.2f}；fallback_ms={fallback_ms:.2f}",
+                rule_hint=(
+                    f"{explanation}；retrieval_ms={retrieval_ms:.2f}；"
+                    f"llm_ms={llm_ms:.2f}；fallback_ms={fallback_ms:.2f}"
+                ),
             )
-        return sql, explanation, "fallback", fallback_reason
-
-    # 路由决策：LLM 健康检查
-    from app.core.llm.health_check import should_use_fallback
-
-    if should_use_fallback():
-        logger.warning("LLM is not available, using fallback directly")
-        fallback_start = time.perf_counter()
-        sql, explanation = generate_sql_by_rules(question)
-        fallback_ms = (time.perf_counter() - fallback_start) * 1000
-        if explanation == DEFAULT_EXPLANATION:
-            explanation = (
-                f"{DEFAULT_EXPLANATION}（llm-unavailable-fallback-v2；retrieval_ms={retrieval_ms:.2f}；"
-                f"fallback_ms={fallback_ms:.2f}；schema_context={schema_context[:80]}）"
-            )
-        else:
-            explanation = build_sql_explanation(
-                sql,
-                rule_hint=f"{explanation}；llm-unavailable-fallback-v2；retrieval_ms={retrieval_ms:.2f}；fallback_ms={fallback_ms:.2f}",
-            )
-        return sql, explanation, "fallback", "llm_unavailable"
-
-    # LLM 生成路径
-    llm_start = time.perf_counter()
-    try:
-        adapter = get_llm_adapter()
-        sql = adapter.generate_sql(question, schema_context)
-        llm_ms = (time.perf_counter() - llm_start) * 1000
-        if not sql or "SELECT" not in sql.upper():
-            raise RuntimeError(f"LLM returned non-SQL response: {sql!r}")
-        explanation = build_sql_explanation(
-            sql,
-            rule_hint=(
-                f"已结合 schema 检索上下文生成 SQL-v2；provider={adapter.provider_name}; "
-                f"retrieval_ms={retrieval_ms:.2f}; llm_ms={llm_ms:.2f}"
-            ),
-        )
-        return sql, explanation, adapter.provider_name, None
-    except Exception as exc:
-        llm_ms = (time.perf_counter() - llm_start) * 1000
-        result = _try_llm_with_fallback(
-            question, schema_context, retrieval_ms, llm_ms, exc
-        )
-        if result is not None and result[0] is not None:
-            return result
-        # fallback 也失败了，优先用 LLM-2 的错误信息
-        blocked_reason = (
-            result[3]
-            if result
-            else (
-                f"LLM runtime failed: {exc} | retrieval_ms={retrieval_ms:.2f} | "
-                f"llm_ms={llm_ms:.2f} | schema_context={schema_context[:120]}"
-            )
-        )
-
-    # LLM 失败，走 fallback
-    fallback_start = time.perf_counter()
-    sql, explanation = generate_sql_by_rules(question)
-    fallback_ms = (time.perf_counter() - fallback_start) * 1000
-    if explanation == DEFAULT_EXPLANATION:
-        explanation = (
-            f"{DEFAULT_EXPLANATION}（fallback-v2；retrieval_ms={retrieval_ms:.2f}；"
-            f"llm_ms={llm_ms:.2f}；fallback_ms={fallback_ms:.2f}；"
-            f"schema_context={schema_context[:80]}）"
-        )
-    else:
-        explanation = build_sql_explanation(
-            sql,
-            rule_hint=(
-                f"{explanation}；retrieval_ms={retrieval_ms:.2f}；"
-                f"llm_ms={llm_ms:.2f}；fallback_ms={fallback_ms:.2f}"
-            ),
-        )
-    return sql, explanation, "fallback", blocked_reason
-
-
-# Feature flag：USE_GENERATE_SQL_V2=true 时启用 v2 版本
-USE_V2 = os.getenv("USE_GENERATE_SQL_V2", "false").lower() == "true"
-
-
-def generate_sql(question: str) -> tuple[str, str, str, str | None]:
-    """
-    生成 SQL 的统一入口。
-
-    通过 USE_GENERATE_SQL_V2 环境变量控制版本：
-    - false（默认）：使用旧版 _generate_sql_legacy()，行为与此前完全相同
-    - true：使用新版 generate_sql_v2()，通过 get_retriever() 获取 retriever
-    """
-    if USE_V2:
-        return generate_sql_v2(question)
-    return _generate_sql_legacy(question)
+        return sql, explanation, "fallback", blocked_reason
 
 
 def check_llm_connectivity() -> tuple[str, str]:

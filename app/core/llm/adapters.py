@@ -1,23 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Protocol
 
 from openai import OpenAI
-from vanna.chromadb import ChromaDB_VectorStore
-from vanna.openai import OpenAI_Chat
 
 from app.config.settings import LLMProviderConfig
 from app.core.llm.prompts import TEXT2SQL_SYSTEM_PROMPT, build_prompt_bundle
-from app.core.retrieval.schema_loader import retrieve_schema_context
-from app.core.sql.generator import RULES
-
-
-class LocalVanna(ChromaDB_VectorStore, OpenAI_Chat):
-    def __init__(self, client: OpenAI, config: dict):
-        ChromaDB_VectorStore.__init__(self, config=config)
-        OpenAI_Chat.__init__(self, client=client, config=config)
 
 
 class LLMAdapter(Protocol):
@@ -28,12 +17,30 @@ class LLMAdapter(Protocol):
     def connectivity_check(self) -> str: ...
 
 
+def _strip_markdown_code_fences(text: str) -> str:
+    """Strip markdown code fences from LLM output.
+
+    LLMs sometimes wrap SQL in ```sql or ``` code blocks.
+    This helper removes those fences while preserving the content.
+    """
+    text = text.strip()
+    if not text.startswith("```"):
+        return text
+
+    lines = text.split("\n")
+    # Remove the opening fence line (e.g., ```sql or ```)
+    content_lines = lines[1:]
+
+    # Check if the last line is a closing fence
+    if content_lines and content_lines[-1].strip() == "```":
+        content_lines = content_lines[:-1]
+
+    return "\n".join(content_lines).strip()
+
+
 @dataclass(frozen=True)
 class OpenAICompatibleAdapter:
     config: LLMProviderConfig
-
-    # 类级别缓存：每个 (model, vector_db_path) 配置共享一个 Vanna 实例
-    _vanna_cache: dict[tuple[str, str], LocalVanna] = {}
 
     @property
     def provider_name(self) -> str:
@@ -46,56 +53,37 @@ class OpenAICompatibleAdapter:
             api_key=self.config.api_key, base_url=self.config.base_url or None
         )
 
-    def _build_vanna(self) -> LocalVanna:
-        cache_key = (self.config.model, self.config.vector_db_path)
-        if cache_key in self._vanna_cache:
-            return self._vanna_cache[cache_key]
-        client = self._build_client()
-        vn = LocalVanna(
-            client=client,
-            config={
-                "model": self.config.model,
-                "path": self.config.vector_db_path,
-                "temperature": 0.1,
-            },
-        )
-
-        db_path = self.config.db_url.replace("sqlite:///", "")
-        vn.connect_to_sqlite(db_path)
-
-        ddl_path = Path("data/ddl/sales_schema.sql")
-        if ddl_path.exists():
-            vn.train(ddl=ddl_path.read_text(encoding="utf-8"))
-
-        vn.train(documentation=TEXT2SQL_SYSTEM_PROMPT)
-        vn.train(
-            documentation=(
-                "业务说明：orders 是订单主表，order_items 是订单明细，products 是商品表。"
-                "销售额优先按 order_items.quantity * order_items.unit_price 汇总；"
-                "城市在 orders.city，区域在 orders.region，商品名在 products.product_name。"
-                "中文问题优先单表求解，只有明确涉及销量/销售额拆分时再联表。"
-            )
-        )
-
-        for rule in RULES:
-            question = "，".join(rule.keywords)
-            vn.train(question=question, sql=rule.sql)
-            vn.train(documentation=f"示例说明：{rule.explanation}")
-
-        self._vanna_cache[cache_key] = vn
-        return vn
-
     def generate_sql(self, question: str, schema_context: str | None = None) -> str:
-        vn = self._build_vanna()
-        context = (
-            schema_context
-            if schema_context is not None
-            else retrieve_schema_context(question)
-        )
+        """Generate SQL from a natural language question using OpenAI chat completion.
+
+        Args:
+            question: The natural language question to convert to SQL.
+            schema_context: Optional pre-retrieved schema context. If not provided,
+                           it will be retrieved based on the question.
+
+        Returns:
+            The generated SQL query string, stripped of any markdown formatting.
+        """
+        client = self._build_client()
+        if schema_context is not None:
+            context = schema_context
+        else:
+            from app.core.retrieval.schema_loader import retrieve_schema_context
+
+            context = retrieve_schema_context(question)
         prompt = build_prompt_bundle(question, context)
-        vn.train(documentation=prompt.system_prompt)
-        vn.train(documentation=prompt.user_prompt)
-        return vn.generate_sql(question)
+
+        response = client.chat.completions.create(
+            model=self.config.model,
+            messages=[
+                {"role": "system", "content": prompt.system_prompt},
+                {"role": "user", "content": prompt.user_prompt},
+            ],
+            temperature=0.1,
+        )
+
+        raw_output = response.choices[0].message.content or ""
+        return _strip_markdown_code_fences(raw_output)
 
     def connectivity_check(self) -> str:
         client = self._build_client()

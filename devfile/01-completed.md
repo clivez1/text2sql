@@ -157,4 +157,37 @@ Round 5 复查发现 6 处遗留旧路径引用，本轮全部修复：
 
 复查结论：代码层、CI、文档中不再有指向旧路径的运行时引用。
 
+---
+
+## 8. Round 6 全面重构（2026-04-17）
+
+**✅ 已完成**
+
+目标：移除 Vanna + N-Provider Fallback + 代码清理
+
+完成项：
+| # | 任务 | 完成日期 |
+|---|------|---------|
+| 1.1 | 重写 adapters.py（移除 Vanna，直接 OpenAI SDK） | 2026-04-17 |
+| 1.2 | 删除 vanna 从 requirements.txt | 2026-04-17 |
+| 1.3 | 删除 resilient_client.py + resilient_llm.py | 2026-04-17 |
+| 2.1 | settings.py 重构为 N-provider 动态解析 | 2026-04-17 |
+| 2.2 | client.py fallback 循环化（_try_llm_cascade） | 2026-04-17 |
+| 2.3 | health_check.py 支持 N-provider + threading.Lock 修复 | 2026-04-17 |
+| 2.4 | .env.example 更新为 N-provider 配置 | 2026-04-17 |
+| 3.1 | 合并 v1/v2 generate_sql（删除 USE_GENERATE_SQL_V2） | 2026-04-17 |
+| 4.1 | 修复 test_settings.py（适配 _llm_providers） | 2026-04-17 |
+| 4.2 | 修复 test_llm_client.py + test_fast_fallback_strategy.py | 2026-04-17 |
+| 4.3 | 删除 test_resilient_client.py + test_resilient_llm.py | 2026-04-17 |
+| 4.4 | adapters.py + client.py chromadb 懒导入修复 | 2026-04-17 |
+| 5.1 | 更新 docs/ 文档 | 2026-04-17 |
+| 5.2 | 更新 devfile/ 完成记录 | 2026-04-17 |
+
+测试结果：230 passed, 2 skipped, 7 failed（均为预存问题）
+
+关键架构变更：
+- Vanna 完全移除（仓库已归档，2.0 API 不兼容，项目仅用作 OpenAI 薄封装）
+- LLM 调用链：Question → Schema检索 → Provider 1 → Provider 2 → ... → Provider N → 规则 fallback
+- 用户配置 LLM_API_KEY_1..N + LLM_BASE_URL_1..N + LLM_MODEL_1..N，系统自适应
+
 _最后更新：2026-04-17_

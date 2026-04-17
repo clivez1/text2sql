@@ -24,20 +24,18 @@ class TestSettings:
         assert settings.db_url is not None
 
     def test_settings_llm_provider(self):
-        """测试 LLM 提供商配置（现在通过 URL 自动检测 provider）"""
+        """测试 LLM 提供商配置（N-provider 动态解析）"""
         settings = get_settings()
 
-        # 验证新配置字段存在
-        assert hasattr(settings, "llm_api_key")
-        assert hasattr(settings, "llm_base_url")
-        assert hasattr(settings, "llm_model")
+        # 验证新 N-provider 架构字段
+        assert hasattr(settings, "_llm_providers")
+        assert settings.provider_count >= 1
 
-        # 验证 provider 自动检测功能
+        # 验证 provider config 获取
         config = settings.get_provider_config(index=1)
-        assert config.provider in ("openai_compatible", "anthropic")
-        assert config.api_key == settings.llm_api_key
-        assert config.base_url == settings.llm_base_url
-        assert config.model == settings.llm_model
+        assert config.provider is not None
+        assert config.api_key is not None
+        assert config.model is not None
 
         # 验证 has_fallback
         assert hasattr(settings, "has_fallback")

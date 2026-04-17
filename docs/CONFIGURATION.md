@@ -68,10 +68,9 @@ load_dotenv()  # 启动时执行，加载 .env 文件
 | `APP_ENV` | string | `dev` | 否 | 运行环境 |
 | `APP_HOST` | string | `0.0.0.0` | 否 | API 监听地址 |
 | `APP_PORT` | int | `8000` | 否 | API 端口 |
-| `LLM_PROVIDER` | string | `bailian_code_plan` | 否 | LLM 提供商（bailian_code_plan/openai_compatible/astron）|
-| `LLM_API_KEY` | string | - | 是* | LLM API 密钥 |
-| `LLM_BASE_URL` | string | - | 否 | LLM API 地址 |
-| `LLM_MODEL` | string | - | 否 | 模型名称 |
+| `LLM_API_KEY_N` | string | - | 是* | LLM API 密钥（N=1,2,3...），支持多 Provider 级联 |
+| `LLM_BASE_URL_N` | string | - | 否 | LLM API 地址（对应 LLM_API_KEY_N） |
+| `LLM_MODEL_N` | string | - | 否 | 模型名称（对应 LLM_API_KEY_N） |
 | `DB_TYPE` | string | `sqlite` | 否 | 数据库类型 |
 | `DB_URL` | string | `sqlite:///data/demo_db/sales.db` | 否 | 数据库连接串 |
 | `VECTOR_DB_PATH` | string | `./.deploy/chroma` | 否 | 向量库路径 |
@@ -83,142 +82,174 @@ load_dotenv()  # 启动时执行，加载 .env 文件
 | `API_KEYS` | string | - | 否 | 有效 API Key 列表（逗号分隔）|
 | `API_KEY_HEADER` | string | `X-API-Key` | 否 | API Key 请求头名称 |
 
-> *`LLM_API_KEY` 对复杂问题的 LLM 补充理解是必需项；但在测试/本地优先模式下，不再是主链路必填项。
+> *`LLM_API_KEY_1`（或向后兼容的 `LLM_API_KEY`）对复杂问题的 LLM 补充理解是必需项；但在测试/本地优先模式下，不再是主链路必填项。Provider 类型由 `LLM_BASE_URL_N` 自动检测，无需手动指定。
 
 ---
 
 ## LLM Provider 配置
 
-### Provider 选择决策
+### N-Provider 级联架构
+
+系统支持配置多个 LLM Provider，按优先级自动级联。当 Provider 1 失败时，自动尝试 Provider 2，以此类推。
 
 ```
-                    需要选择 LLM Provider？
-                            │
-              ┌─────────────┼─────────────┐
-              ↓             ↓             ↓
-        国内用户        海外用户       本地测试
-              │             │             │
-              ↓             ↓             ↓
-    bailian_code_plan  openai_compatible  规则匹配
-    (百炼 Code Plan)   (OpenAI API)      (无需 API Key)
+                    LLM 调用请求
+                         │
+                         ▼
+              ┌─────────────────────┐
+              │   Provider 1        │
+              │ (LLM_API_KEY_1)     │
+              └──────────┬──────────┘
+                         │ 失败
+                         ▼
+              ┌─────────────────────┐
+              │   Provider 2        │
+              │ (LLM_API_KEY_2)     │
+              └──────────┬──────────┘
+                         │ 失败
+                         ▼
+                         ...
+                         │ 全部失败
+                         ▼
+              ┌─────────────────────┐
+              │   规则匹配 Fallback  │
+              └─────────────────────┘
 ```
 
-### 百炼 Code Plan（推荐国内用户）
+### 配置方式
 
-阿里云百炼平台的 Code Plan 接口，专为代码生成优化。
+所有 Provider 统一使用 OpenAI 兼容协议，通过 `LLM_BASE_URL_N` 自动检测 API 类型。
+
+**单 Provider 配置**：
 
 ```bash
-# .env 配置
-LLM_PROVIDER=bailian_code_plan
-LLM_API_KEY=sk-xxxxxxxx        # 百炼 API Key
-LLM_BASE_URL=https://coding.dashscope.aliyuncs.com/v1
-LLM_MODEL=glm-5                # 可选：glm-4, qwen-turbo 等
-```
-
-**获取 API Key**：
-1. 访问 [阿里云百炼控制台](https://bailian.console.aliyun.com/)
-2. 创建应用 → 获取 API Key
-3. 支持 Code Plan 模式的模型：glm-4, glm-5, qwen-turbo
-
-**源码引用**（`adapters.py`）：
-
-```python
-@dataclass(frozen=True)
-class BailianCodePlanAdapter(OpenAICompatibleAdapter):
-    """百炼 Code Plan 适配器
-    
-    继承 OpenAICompatibleAdapter，使用相同的 OpenAI 兼容接口。
-    区别在于默认的 base_url 指向百炼平台。
-    """
-    provider_name: str = "bailian_code_plan"
-```
-
-### OpenAI Compatible
-
-支持任何 OpenAI 兼容的 API（OpenAI、DeepSeek、Moonshot 等）。
-
-```bash
-# OpenAI 官方
-LLM_PROVIDER=openai_compatible
+# 方式 1：使用无后缀变量（向后兼容）
 LLM_API_KEY=sk-xxxxxxxx
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
 
-# DeepSeek
-LLM_PROVIDER=openai_compatible
-LLM_API_KEY=sk-xxxxxxxx
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
-
-# Moonshot
-LLM_PROVIDER=openai_compatible
-LLM_API_KEY=sk-xxxxxxxx
-LLM_BASE_URL=https://api.moonshot.cn/v1
-LLM_MODEL=moonshot-v1-8k
+# 方式 2：使用 _1 后缀（推荐）
+LLM_API_KEY_1=sk-xxxxxxxx
+LLM_BASE_URL_1=https://api.openai.com/v1
+LLM_MODEL_1=gpt-4o-mini
 ```
 
-### Astron (xfyun-maas)
-
-讯飞星火大模型，适合国内用户。
+**多 Provider 级联配置**：
 
 ```bash
-LLM_PROVIDER=astron
-ASTRON_API_KEY=your-api-key
-ASTRON_BASE_URL=https://maas-api.xfyun.cn/v1
-ASTRON_MODEL=astron-code-latest
+# Provider 1：主服务（OpenAI）
+LLM_API_KEY_1=sk-xxxxxxxx
+LLM_BASE_URL_1=https://api.openai.com/v1
+LLM_MODEL_1=gpt-4o-mini
+
+# Provider 2：备用服务（DeepSeek）
+LLM_API_KEY_2=sk-xxxxxxxx
+LLM_BASE_URL_2=https://api.deepseek.com/v1
+LLM_MODEL_2=deepseek-chat
+
+# Provider 3：备用服务（百炼）
+LLM_API_KEY_3=sk-xxxxxxxx
+LLM_BASE_URL_3=https://coding.dashscope.aliyuncs.com/v1
+LLM_MODEL_3=qwen-turbo
 ```
 
-**特点**：
-- 专为代码生成优化
-- 支持长上下文（262144 tokens）
-- 国内访问稳定
+**配置规则**：
+- 索引从 1 开始，连续编号（1, 2, 3...）
+- 遇到第一个空缺即停止扫描
+- `LLM_API_KEY` 等价于 `LLM_API_KEY_1`（向后兼容）
+- Provider 类型由 `LLM_BASE_URL_N` 自动检测，无需手动指定
 
-### 环境变量优先级
+### 常用 Provider 示例
 
-配置加载时的优先级逻辑（源码：`settings.py`）：
+**OpenAI**：
+
+```bash
+LLM_API_KEY_1=sk-xxxxxxxx
+LLM_BASE_URL_1=https://api.openai.com/v1
+LLM_MODEL_1=gpt-4o-mini
+```
+
+**DeepSeek**：
+
+```bash
+LLM_API_KEY_1=sk-xxxxxxxx
+LLM_BASE_URL_1=https://api.deepseek.com/v1
+LLM_MODEL_1=deepseek-chat
+```
+
+**阿里百炼**：
+
+```bash
+LLM_API_KEY_1=sk-xxxxxxxx
+LLM_BASE_URL_1=https://coding.dashscope.aliyuncs.com/v1
+LLM_MODEL_1=qwen-turbo
+```
+
+**Moonshot**：
+
+```bash
+LLM_API_KEY_1=sk-xxxxxxxx
+LLM_BASE_URL_1=https://api.moonshot.cn/v1
+LLM_MODEL_1=moonshot-v1-8k
+```
+
+### 源码引用
+
+**适配器**（`adapters.py`）：
 
 ```python
-def get_provider_config(self) -> LLMProviderConfig:
-    provider = self.llm_provider
-    if provider == "bailian_code_plan":
-        return LLMProviderConfig(
-            # 优先级：LLM_* > BAILIAN_*
-            base_url=self.llm_base_url or self.bailian_base_url,
-            api_key=self.llm_api_key or self.bailian_api_key,
-            model=self.llm_model or self.bailian_model,
-            ...
+@dataclass(frozen=True)
+class OpenAICompatibleAdapter:
+    config: LLMProviderConfig
+
+    @property
+    def provider_name(self) -> str:
+        return self.config.provider
+
+    def generate_sql(self, question: str, schema_context: str | None = None) -> str:
+        """Generate SQL from a natural language question using OpenAI chat completion."""
+        client = self._build_client()
+        # ... 调用 OpenAI API
+```
+
+**配置解析**（`settings.py`）：
+
+```python
+def get_provider_config(self, index: int = 1) -> LLMProviderConfig:
+    """Get provider config. index is 1-based."""
+    if index < 1 or index > len(self._llm_providers):
+        raise ValueError(
+            f"Provider index {index} out of range (1-{len(self._llm_providers)})"
         )
+    return self._llm_providers[index - 1]
 ```
-
-**优先级规则**：
-
-```
-LLM_API_KEY > BAILIAN_API_KEY > OPENAI_API_KEY
-LLM_BASE_URL > BAILIAN_BASE_URL > OPENAI_BASE_URL  
-LLM_MODEL > BAILIAN_MODEL > OPENAI_MODEL
-```
-
-**设计意图**：允许通过 `LLM_*` 变量统一覆盖所有 Provider 配置，避免维护多套密钥。
 
 ### Fallback 机制
 
-当 LLM 调用失败时，系统自动 fallback 到规则匹配（源码：`client.py`）：
+当 LLM 调用失败时，系统自动级联到下一个 Provider，全部失败后 fallback 到规则匹配：
+
+```
+Provider 1 → timeout → Provider 2 → error → ... → Provider N → 规则匹配
+```
+
+**调用链**（源码：`client.py`）：
 
 ```python
 def generate_sql(question: str) -> tuple[str, str, str, str | None]:
     """SQL 生成入口
     
     调用链：
-    1. 尝试 LLM 生成
-    2. 失败则 fallback 到规则匹配
-    3. 规则未命中则返回默认 SQL
+    1. 尝试 Provider 1 生成
+    2. 失败则尝试 Provider 2, 3, ...
+    3. 全部失败则 fallback 到规则匹配
+    4. 规则未命中则返回默认 SQL
     """
     try:
         adapter = get_llm_adapter()
         sql = adapter.generate_sql(question)
         return sql, explanation, adapter.provider_name, None
     except Exception as exc:
-        # LLM 失败，fallback 到规则匹配
+        # 所有 Provider 失败，fallback 到规则匹配
         blocked_reason = f"LLM runtime failed: {exc}"
         sql, explanation = generate_sql_by_rules(question)
         return sql, explanation, "fallback", blocked_reason
@@ -519,10 +550,10 @@ APP_ENV=dev
 APP_HOST=0.0.0.0
 APP_PORT=8000
 
-# LLM 配置
-LLM_PROVIDER=bailian_code_plan
-LLM_API_KEY=sk-your-dev-key
-LLM_MODEL=glm-5
+# LLM 配置（单 Provider）
+LLM_API_KEY_1=sk-your-dev-key
+LLM_BASE_URL_1=https://api.openai.com/v1
+LLM_MODEL_1=gpt-4o-mini
 
 # 数据库
 DB_URL=sqlite:///data/demo_db/sales.db
@@ -543,10 +574,14 @@ APP_ENV=production
 APP_HOST=0.0.0.0
 APP_PORT=8000
 
-# LLM 配置（从环境变量注入）
-LLM_PROVIDER=bailian_code_plan
-LLM_API_KEY=${BAILIAN_API_KEY}
-LLM_MODEL=glm-5
+# LLM 配置（多 Provider 级联）
+LLM_API_KEY_1=${OPENAI_API_KEY}
+LLM_BASE_URL_1=https://api.openai.com/v1
+LLM_MODEL_1=gpt-4o-mini
+
+LLM_API_KEY_2=${DEEPSEEK_API_KEY}
+LLM_BASE_URL_2=https://api.deepseek.com/v1
+LLM_MODEL_2=deepseek-chat
 
 # 数据库（MySQL）
 DB_URL=mysql+pymysql://text2sql:${DB_PASSWORD}@db.internal:3306/sales
@@ -572,17 +607,17 @@ ALLOWED_TABLES=orders,products,order_items,customers
 ls -la .env
 
 # 2. 检查环境变量是否加载
-python -c "from dotenv import load_dotenv; load_dotenv(); import os; print(os.getenv('LLM_PROVIDER'))"
+python -c "from dotenv import load_dotenv; load_dotenv(); import os; print(os.getenv('LLM_API_KEY_1'))"
 
 # 3. 检查配置类
-python -c "from app.config.settings import get_settings; s=get_settings(); print(s.llm_provider)"
+python -c "from app.config.settings import get_settings; s=get_settings(); print(s.provider_count)"
 ```
 
 ### Q2: LLM 调用失败
 
 **检查清单**：
-1. `LLM_API_KEY` 是否正确
-2. `LLM_BASE_URL` 是否可达
+1. `LLM_API_KEY_1` 是否正确
+2. `LLM_BASE_URL_1` 是否可达
 3. 模型名称是否正确
 4. 网络是否有代理
 
@@ -609,5 +644,6 @@ mysql -h host -u user -p -e "SELECT 1"
 
 | 日期 | 更新内容 |
 |------|----------|
+| 2026-04-17 | Round 6: N-Provider Fallback, 移除 Vanna, 移除 USE_GENERATE_SQL_V2 |
 | 2026-03-22 | 细化配置说明，添加源码引用和流程图 |
 | 2026-03-22 | 创建配置说明文档 |

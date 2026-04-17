@@ -41,24 +41,16 @@ nano .env  # 或使用任意编辑器
 
 ```bash
 # 测试/本地优先模式下，可先不依赖有效 LLM Key
-LLM_PROVIDER=bailian_code_plan
-LLM_API_KEY=可留空或后续再配置
+LLM_API_KEY_1=可留空或后续再配置
+LLM_BASE_URL_1=https://api.openai.com/v1  # 或其他 OpenAI 兼容 API
 ```
-
-**可选 LLM Provider 配置**：
-
-| Provider | 环境变量 | 说明 |
-|----------|---------|------|
-| `bailian_code_plan` | `BAILIAN_API_KEY` | 阿里百炼（默认） |
-| `openai_compatible` | `OPENAI_API_KEY` | OpenAI 或兼容 API |
-| `astron` | `ASTRON_API_KEY` | 讯飞 Astron |
 
 **为什么这样配**：
 
 | 变量 | 作用 | 不配置会怎样 |
 |------|------|-------------|
-| `LLM_API_KEY` | 复杂问题补充理解 | 简单/半结构化问题仍可走本地规则与模板 |
-| `LLM_PROVIDER` | 复杂问题的可选 LLM 服务商 | 默认百炼 |
+| `LLM_API_KEY_1` | 复杂问题补充理解 | 简单/半结构化问题仍可走本地规则与模板 |
+| `LLM_BASE_URL_1` | 指定 LLM API 地址 | 默认使用 OpenAI 兼容协议 |
 
 ---
 
@@ -74,7 +66,7 @@ pip install -r requirements.txt
 
 | 包 | 用途 |
 |---|------|
-| `vanna` | 兼容的 Text2SQL / LLM 适配依赖（当前主链路已改为本地优先，LLM 仅作补充） |
+| `openai` | LLM 调用（OpenAI 兼容协议） |
 | `chromadb` | 向量数据库（Schema RAG） |
 | `fastapi` | REST API |
 | `streamlit` | Web UI |
@@ -133,7 +125,7 @@ curl http://localhost:8000/health
   "db_type": "sqlite",
   "db_connected": true,
   "llm_available": false,
-  "llm_provider": "bailian_code_plan",
+  "provider_count": 1,
   "latency_ms": 5.23,
   "timestamp": "2026-04-15T10:30:00"
 }
@@ -273,7 +265,7 @@ pip install -r requirements.txt
 - 只有复杂问题才需要 LLM 补充
 - 若业务结果正确，`mode=fallback` 可视为主成功路径
 
-只有在复杂问题明显理解失败时，再检查 `.env` 中 `LLM_API_KEY` 是否正确。
+只有在复杂问题明显理解失败时，再检查 `.env` 中 `LLM_API_KEY_1` 是否正确。
 
 ### Q3: 数据库不存在
 
@@ -324,7 +316,6 @@ READONLY_MODE=false
 | `READONLY_MODE` | `true` | 仅允许 SELECT 语句 |
 | `SQL_MAX_ROWS` | `200` | 最大返回行数 |
 | `ALLOWED_TABLES` | `orders,products,...` | 表白名单 |
-| `USE_GENERATE_SQL_V2` | `false` | 启用新版 SQL 生成路径 |
 | `API_KEY_ENABLED` | `false` | 启用 API Key 认证 |
 
 ---
@@ -344,6 +335,7 @@ READONLY_MODE=false
 
 | 日期 | 内容 |
 |------|------|
+| 2026-04-17 | Round 6: 移除 Vanna 依赖, N-Provider 配置更新 |
 | 2026-04-15 | v3.0 大更新：YAML 规则、图表推荐、Docker 部署、新 API 格式 |
 | 2026-04-11 | 工程化收口：覆盖率 80%、可观测性、认证骨架 |
 | 2026-03-22 | 创建初版 |

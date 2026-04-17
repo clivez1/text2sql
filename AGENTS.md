@@ -67,7 +67,6 @@ Provider routing in `app/core/llm/client.py:get_llm_adapter()` uses if-elif chai
 
 ## Feature Flags
 
-- `USE_GENERATE_SQL_V2=true` — Enable new SQL generation path with `SchemaRetriever` injection
 - `READONLY_MODE=true` — Only allow SELECT statements
 - `API_KEY_ENABLED=true` — Enable API key authentication
 
