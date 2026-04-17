@@ -14,6 +14,8 @@ class LLMAdapter(Protocol):
 
     def generate_sql(self, question: str, schema_context: str | None = None) -> str: ...
 
+    def chat(self, prompt: str) -> str: ...
+
     def connectivity_check(self) -> str: ...
 
 
@@ -94,5 +96,18 @@ class OpenAICompatibleAdapter:
                 {"role": "user", "content": "Reply with OK"},
             ],
             temperature=0,
+        )
+        return response.choices[0].message.content or ""
+
+    def chat(self, prompt: str) -> str:
+        """通用聊天接口，用于自然语言摘要等场景"""
+        client = self._build_client()
+        response = client.chat.completions.create(
+            model=self.config.model,
+            messages=[
+                {"role": "system", "content": "你是一个数据分析助手。请用简洁的中文回答问题。"},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
         )
         return response.choices[0].message.content or ""
