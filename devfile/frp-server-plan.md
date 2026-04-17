@@ -25,7 +25,7 @@
 
 | 系统 | 用途 | 用户名 | 密码 |
 |------|------|--------|------|
-| frp Dashboard | 管理 frp 代理状态 | `opencode` | `1234` |
+| frp Dashboard | 管理 frp 代理状态 | `opencode` | `123456` |
 | frp Token | 客户端连接认证 | - | `OpencodeFRP2026SecureToken!@#` |
 
 ---

@@ -17,8 +17,8 @@
 
 | 系统 | 用途 | 用户名 | 密码 |
 |------|------|--------|------|
-| OpenCode Web | 用户登录 OpenCode | `opencode` | `1234` |
-| frp Dashboard | 管理 frp 代理状态 | `opencode` | `1234` |
+| OpenCode Web | 用户登录 OpenCode | `opencode` | `123456` |
+| frp Dashboard | 管理 frp 代理状态 | `opencode` | `123456` |
 | frp Token | 连接服务端认证 | - | `OpencodeFRP2026SecureToken!@#` |
 
 ---
@@ -224,7 +224,7 @@ log.maxDays = 7
    ```powershell
    # 设置认证环境变量（用户登录凭证）
    $env:OPENCODE_SERVER_USERNAME = "opencode"
-   $env:OPENCODE_SERVER_PASSWORD = "1234"
+$env:OPENCODE_SERVER_PASSWORD = "123456"
    
    # 启动 OpenCode Web（在新窗口）
    Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:OPENCODE_SERVER_USERNAME='opencode'; `$env:OPENCODE_SERVER_PASSWORD='1234'; opencode web --port 4096"
@@ -457,7 +457,7 @@ opencode web --port 4097
 ```powershell
 # 当前配置的认证
 $env:OPENCODE_SERVER_USERNAME = "opencode"
-$env:OPENCODE_SERVER_PASSWORD = "1234"
+$env:OPENCODE_SERVER_PASSWORD = "123456"
 
 # 如果需要取消认证（不推荐，外网暴露有安全风险）
 $env:OPENCODE_SERVER_PASSWORD = $null
@@ -474,8 +474,8 @@ $env:OPENCODE_SERVER_USERNAME = $null
 
 | 系统 | 用户名 | 密码 |
 |------|--------|------|
-| OpenCode Web | `opencode` | `1234` |
-| frp Dashboard | `opencode` | `1234` |
+| OpenCode Web | `opencode` | `123456` |
+| frp Dashboard | `opencode` | `123456` |
 
 ---
 
@@ -496,5 +496,5 @@ Task 1（获取服务端端口）→ Task 2 → Task 3 → Task 4 → Task 5 →
 配置完成后，OpenCode Web 应该可以通过外网地址访问：
 
 1. 浏览器打开 `http://64.188.27.227:PROXY_PORT`
-2. 输入用户名 `opencode` 和密码 `1234`
+2. 输入用户名 `opencode` 和密码 `123456`
 3. 开始使用 OpenCode Web
