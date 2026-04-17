@@ -35,7 +35,8 @@ EXPOSE 8501 8000
 ENV APP_ENV=production \
     APP_HOST=0.0.0.0 \
     APP_PORT=8000 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/app
 
 # Default command: combined mode (FastAPI + Streamlit)
 CMD ["/app/entrypoint.sh"]

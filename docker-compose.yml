@@ -19,11 +19,11 @@ services:
       - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
       - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
       - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
-      - DB_URL=sqlite:///data/demo_db/sales.db
+      - DB_URL=sqlite:////app/data/demo_db/sales_dev.db
       - VECTOR_DB_PATH=./.deploy/chroma
     volumes:
-      # Demo data (read-only, included in image)
-      - ./data:/app/data:ro
+      # Demo data (read-write for local initialization; will persist in host)
+      - text2sql_demo_data:/app/data
       # Runtime data (writable)
       - ./.deploy/chroma:/app/.deploy/chroma
       - ./.deploy/logs:/app/.deploy/logs
@@ -49,11 +49,11 @@ services:
       - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
       - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
       - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
-      - DB_URL=sqlite:///data/demo_db/sales.db
+      - DB_URL=sqlite:////app/data/demo_db/sales_dev.db
       - VECTOR_DB_PATH=./.deploy/chroma
     volumes:
-      # Demo data (read-only, included in image)
-      - ./data:/app/data:ro
+      # Demo data (read-only via volume isolation; actual data stored in named volume)
+      - text2sql_demo_data:/app/data
       # Runtime data (writable)
       - ./.deploy/chroma:/app/.deploy/chroma
       - ./.deploy/logs:/app/.deploy/logs
@@ -80,13 +80,17 @@ services:
       - BAILIAN_API_KEY=${BAILIAN_API_KEY:-}
       - BAILIAN_BASE_URL=${BAILIAN_BASE_URL:-https://coding.dashscope.aliyuncs.com/v1}
       - BAILIAN_MODEL=${BAILIAN_MODEL:-glm-5}
-      - DB_URL=sqlite:///data/demo_db/sales.db
+      - DB_URL=sqlite:////app/data/demo_db/sales_dev.db
       - VECTOR_DB_PATH=./.deploy/chroma
     volumes:
-      # Demo data (read-only, included in image)
-      - ./data:/app/data:ro
+      # Demo data (read-only via volume isolation; actual data stored in named volume)
+      - text2sql_demo_data:/app/data
       # Runtime data (writable)
       - ./.deploy/chroma:/app/.deploy/chroma
       - ./.deploy/logs:/app/.deploy/logs
     # Run both Streamlit (8501) and FastAPI (8000) via entrypoint script
     command: /app/entrypoint.sh
+
+volumes:
+  text2sql_demo_data:
+    driver: local
