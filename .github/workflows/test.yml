@@ -19,7 +19,7 @@ jobs:
         LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
         LLM_MODEL: ${{ secrets.LLM_MODEL }}
       run: |
-        cat > .impKey << 'EOF'
+        cat > .impKey <<EOF
         APP_ENV=dev
         APP_HOST=0.0.0.0
         APP_PORT=8000
