@@ -29,14 +29,13 @@ class TestSettings:
 
         # 验证新 N-provider 架构字段
         assert hasattr(settings, "_llm_providers")
-        assert settings.provider_count >= 0
+        assert settings.provider_count >= 1
 
-        # 验证 provider config 获取（仅在有 provider 时测试）
-        if settings.provider_count >= 1:
-            config = settings.get_provider_config(index=1)
-            assert config.provider is not None
-            assert config.api_key is not None
-            assert config.model is not None
+        # 验证 provider config 获取
+        config = settings.get_provider_config(index=1)
+        assert config.provider is not None
+        assert config.api_key is not None
+        assert config.model is not None
 
         # 验证 has_fallback
         assert hasattr(settings, "has_fallback")
