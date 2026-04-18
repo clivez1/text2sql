@@ -10,24 +10,73 @@ load_dotenv()
 load_dotenv(dotenv_path=".impKey", override=True)
 
 
-def _detect_provider(base_url: str) -> str:
-    """Auto-detect API protocol from base_url pattern."""
+def _normalize_protocol(value: str) -> str:
+    """Normalize configured LLM protocol names."""
+    lower = (value or "").strip().lower()
+    if lower in {"anthropic", "anthropic_messages", "claude"}:
+        return "anthropic_messages"
+    if lower in {"local", "local_gateway", "local-openai", "local_openai"}:
+        return "local_gateway"
+    return "openai_compatible"
+
+
+def _detect_protocol(base_url: str) -> str:
+    """Infer API protocol from base_url when protocol is not configured."""
     if not base_url:
         return "openai_compatible"
+
     lower = base_url.lower()
     if "anthropic" in lower or "claude" in lower:
-        return "anthropic"
+        return "anthropic_messages"
+    if any(token in lower for token in ["localhost", "127.0.0.1", "host.docker.internal", "ollama", "vllm", "lmstudio"]):
+        return "local_gateway"
     return "openai_compatible"
+
+
+def _provider_name_from_protocol(protocol: str) -> str:
+    """Return a stable provider name used in logs, health checks, and metrics."""
+    if protocol == "anthropic_messages":
+        return "anthropic"
+    if protocol == "local_gateway":
+        return "local_gateway"
+    return "openai_compatible"
+
+
+def _get_env_with_index(name: str, index: int, default: str = "") -> str:
+    """Read indexed env var, falling back to unsuffixed name for index=1."""
+    if index == 1:
+        return os.getenv(f"{name}_1") or os.getenv(name, default)
+    return os.getenv(f"{name}_{index}", default)
+
+
+def _parse_int_env(name: str, index: int, default: int) -> int:
+    raw = _get_env_with_index(name, index, str(default))
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _parse_float_env(name: str, index: int, default: float) -> float:
+    raw = _get_env_with_index(name, index, str(default))
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
 
 
 @dataclass(frozen=True)
 class LLMProviderConfig:
     provider: str
+    protocol: str
     base_url: str
     api_key: str
     model: str
     db_url: str
     vector_db_path: str
+    purpose: str = "general"
+    timeout_seconds: float = 30.0
+    max_tokens: int = 1024
 
 
 def _parse_providers(db_url: str, vector_db_path: str) -> tuple[LLMProviderConfig, ...]:
@@ -40,55 +89,77 @@ def _parse_providers(db_url: str, vector_db_path: str) -> tuple[LLMProviderConfi
     providers: list[LLMProviderConfig] = []
 
     # Index 1: prefer LLM_API_KEY_1, fall back to LLM_API_KEY (no suffix)
-    api_key_1 = os.getenv("LLM_API_KEY_1") or os.getenv("LLM_API_KEY", "")
+    api_key_1 = _get_env_with_index("LLM_API_KEY", 1)
     if api_key_1:
-        base_url_1 = os.getenv("LLM_BASE_URL_1") or os.getenv("LLM_BASE_URL", "")
-        model_1 = os.getenv("LLM_MODEL_1") or os.getenv("LLM_MODEL", "")
-        provider_1 = _detect_provider(base_url_1)
+        base_url_1 = _get_env_with_index("LLM_BASE_URL", 1)
+        model_1 = _get_env_with_index("LLM_MODEL", 1)
+        protocol_1 = _normalize_protocol(
+            _get_env_with_index("LLM_PROTOCOL", 1, _detect_protocol(base_url_1))
+        )
+        provider_1 = _provider_name_from_protocol(protocol_1)
+        purpose_1 = _get_env_with_index("LLM_PURPOSE", 1, "general")
+        timeout_1 = _parse_float_env("LLM_TIMEOUT", 1, 30.0)
+        max_tokens_1 = _parse_int_env("LLM_MAX_TOKENS", 1, 1024)
 
         if not model_1:
             defaults = {
-                "anthropic": "claude-sonnet-4-20250514",
+                "anthropic_messages": "claude-sonnet-4-20250514",
+                "local_gateway": "local-model",
                 "openai_compatible": "gpt-4o-mini",
             }
-            model_1 = defaults.get(provider_1, "gpt-4o-mini")
+            model_1 = defaults.get(protocol_1, "gpt-4o-mini")
 
         providers.append(
             LLMProviderConfig(
                 provider=provider_1,
+                protocol=protocol_1,
                 base_url=base_url_1,
                 api_key=api_key_1,
                 model=model_1,
                 db_url=db_url,
                 vector_db_path=vector_db_path,
+                purpose=purpose_1,
+                timeout_seconds=timeout_1,
+                max_tokens=max_tokens_1,
             )
         )
 
     # Index 2+: scan LLM_API_KEY_2, _3, _4, ... until first gap
     idx = 2
     while True:
-        api_key = os.getenv(f"LLM_API_KEY_{idx}", "")
+        api_key = _get_env_with_index("LLM_API_KEY", idx)
         if not api_key:
             break
-        base_url = os.getenv(f"LLM_BASE_URL_{idx}", "")
-        model = os.getenv(f"LLM_MODEL_{idx}", "")
-        provider = _detect_provider(base_url)
+        base_url = _get_env_with_index("LLM_BASE_URL", idx)
+        model = _get_env_with_index("LLM_MODEL", idx)
+        protocol = _normalize_protocol(
+            _get_env_with_index("LLM_PROTOCOL", idx, _detect_protocol(base_url))
+        )
+        provider = _provider_name_from_protocol(protocol)
+        purpose = _get_env_with_index("LLM_PURPOSE", idx, "general")
+        timeout_seconds = _parse_float_env("LLM_TIMEOUT", idx, 30.0)
+        max_tokens = _parse_int_env("LLM_MAX_TOKENS", idx, 1024)
 
         if not model:
             defaults = {
-                "anthropic": "claude-sonnet-4-20250514",
+                "anthropic_messages": "claude-sonnet-4-20250514",
+                "local_gateway": "local-model",
                 "openai_compatible": "gpt-4o-mini",
             }
-            model = defaults.get(provider, "gpt-4o-mini")
+            model = defaults.get(protocol, "gpt-4o-mini")
 
         providers.append(
             LLMProviderConfig(
                 provider=provider,
+                protocol=protocol,
                 base_url=base_url,
                 api_key=api_key,
                 model=model,
                 db_url=db_url,
                 vector_db_path=vector_db_path,
+                purpose=purpose,
+                timeout_seconds=timeout_seconds,
+                max_tokens=max_tokens,
             )
         )
         idx += 1

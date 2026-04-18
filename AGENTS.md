@@ -114,6 +114,6 @@ Connectors in `app/core/sql/connectors/`.
 
 See `devfile/` for detailed progress:
 - `00-master-plan.md` — Architecture optimization plan
-- `01-completed.md` — Completed milestones
-- `02-pending.md` — Pending tasks
-- `03-in-progress.md` — Current work
+- `01-current-state.md` — Current repository state and boundaries
+- `02-target-architecture.md` — Target repository and code architecture
+- `03-execution-roadmap.md` — Current roadmap and execution window

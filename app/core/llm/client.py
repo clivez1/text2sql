@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import logging
 
-from app.core.llm.adapters import LLMAdapter, OpenAICompatibleAdapter
+from app.core.llm.adapters import LLMAdapter, create_llm_adapter
 from app.core.llm.prompts import build_sql_explanation
 from app.core.nlu.question_classifier import classify_question
 from app.core.sql.generator import DEFAULT_EXPLANATION, generate_sql_by_rules
@@ -38,7 +38,7 @@ def should_fast_fallback(question: str) -> bool:
 def get_llm_adapter(index: int = 1) -> LLMAdapter:
     settings = get_settings()
     config = settings.get_provider_config(index)
-    return OpenAICompatibleAdapter(config=config)
+    return create_llm_adapter(config)
 
 
 def _try_llm_cascade(

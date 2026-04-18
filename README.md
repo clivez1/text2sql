@@ -46,8 +46,8 @@
 | **API 集成** | [API 文档](docs/api.md) → 调用示例 |
 | **部署运维** | [配置说明](docs/CONFIGURATION.md) → [部署指南](docs/deployment.md) |
 | **架构理解** | [架构设计](docs/architecture.md) → 模块详解 |
-| **二次开发** | `devfile/01-development.md` → `devfile/03-pending.md` → 源码 |
-| **推进项目** | `devfile/05-progress-summary.md` → `devfile/06-consistency-update.md` |
+| **二次开发** | `devfile/README.md` → `devfile/01-current-state.md` → `devfile/02-target-architecture.md` |
+| **推进项目** | `devfile/00-master-plan.md` → `devfile/03-execution-roadmap.md` → `devfile/07-completed-history.md` |
 
 ---
 
@@ -180,21 +180,13 @@ curl -X POST "http://localhost:8000/ask" \
 ```
 text2sql-agent/
 ├── app/
-│   ├── api/                 # FastAPI 路由
-│   │   └── main.py         # 应用入口 ← /ask, /health
-│   │
-│   ├── ui/                  # Streamlit 界面
-│   │   └── streamlit_app.py # 主界面
-│   │
-│   ├── core/                # 核心业务
-│   │   ├── nlu/            # 本地问题分类
-│   │   ├── llm/            # LLM 补充理解
-│   │   ├── sql/            # SQL 生成/执行/安全
-│   │   ├── retrieval/      # 本地 schema context + ChromaDB
-│   │   ├── chart/          # 图表推荐
-│   │   └── orchestrator/   # 流程编排
-│   │
-│   └── config/             # 配置管理
+│   ├── presentation/        # 新入口层：API、UI 适配
+│   ├── application/         # 新应用层：编排、用例、会话、actions
+│   ├── domain/              # 新领域层：查询、治理、会话、可视化对象
+│   ├── infrastructure/      # 新基础设施层：LLM、检索、执行、存储、安全、观测
+│   ├── core/                # 过渡区：旧实现仍在逐步迁移
+│   ├── shared/              # 共享 schemas / types / utils
+│   └── config/              # 配置管理
 │
 ├── data/                    # Demo 数据（入 git）
 │   ├── demo_db/            # SQLite Demo 数据库
@@ -207,12 +199,11 @@ text2sql-agent/
 │
 ├── datasets/                # 测试数据集（不入 git）
 │
-├── scripts/                # 工具脚本
-│   ├── init_demo_db.py    # 初始化 Demo 数据库
-│   └── ingest_schema.py   # 导入 Schema 到向量库
+├── scripts/                # 初始化、验证和运维脚本
 │
 ├── tests/                  # 测试用例
-└── docs/                   # 文档
+├── docs/                   # 当前运行态文档（使用、配置、API、部署）
+└── devfile/                # 规划文档（现状、目标架构、路线图、归档）
 ```
 
 ---

@@ -1,114 +1,84 @@
-# Text2SQL-0412 架构优化方案 1
+# 00. 主方案文档
 
-> 项目：text2sql-0412
-> 状态：**第四轮方案已收敛，待执行**
-> 生成时间：2026-04-14 | **更新：2026-04-15**
-
----
-
-## 一、背景与目标
-
-项目已完成第一轮工程化收口（覆盖率 80%，265 passed），但架构存在 5 个核心问题，限制了其易维护性、易理解性和可扩展性。同时，LEE 提出了新的需求：支持多 RAG embedding 对比评测，以及增大 langchain 使用比重。
-
-**目标：**
-- 易维护：模块边界清晰、职责单一
-- 易理解：新进开发者能快速定位代码
-- 可扩展：新增 RAG 实现 / 新增 LLM Provider 不破坏现有结构
-- LangChain Native：直接使用 LCEL / Embeddings / VectorStore，不通过 Vanna 间接
-- 可评测：不同 embedding/retriever 可对比性能
+> 状态：当前生效
+> 更新：2026-04-18
 
 ---
 
-## 二、需求汇总
+## 1. 项目终态
 
-### 原始 5 大架构问题
+项目终态定义为三层目标：
 
-| # | 问题 | 根因 | 影响 |
-|---|------|------|------|
-| 1 | `generate_sql()` 混合 7 种职责 | 无模块边界，路由逻辑全部堆在一个函数 | 扩展困难，单点腐败 |
-| 2 | 27 条规则硬编码在 `generator.py` | 规则与代码耦合，无法运行时修改 | 业务人员无法维护 |
-| 3 | `QuestionClassification` 结果未被使用 | classifier 仅用 `needs_llm`，其余字段丢弃 | 分类器是"死代码" |
-| 4 | 两套 DB 抽象层并行 | `database.py` + `db_abstraction.py` 并存 | 维护混乱 |
-| 5 | UI（Streamlit）绕过 API 直接 import pipeline | 模块间无调用规范 | 路径不一致，无法独立测 |
-
-### 新增需求（Round 3/4）
-
-| # | 需求 | 背景 | 优先级 |
-|---|------|------|--------|
-| 6 | 多 RAG embedding 对比评测 | 需要切换不同 embedding 模型（bge/m3e）和向量库做性能对比 | P0 |
-| 7 | 增大 langchain 使用比重 | 直接使用 LCEL / Embeddings / VectorStore | P2（暂缓） |
+1. 成熟轻量级 Text2SQL：支持中大型数据库的自然语言分析。
+2. 多轮分析 Copilot：以 LLM 优先和 grounding 为主链路。
+3. 受治理数据操作系统：具备审批、审计、回滚和幂等能力。
 
 ---
 
-## 三、当前代码真实问题优先级
+## 2. 主线原则
 
-经过 Round 4 深度代码扫描，修正了 Round 3 方案中对问题深度的误判：
-
-| 优先级 | 问题 | 真实根因 | 建议 |
-|--------|------|---------|------|
-| **P0** | `retrieve_schema_context()` ChromaDB 硬编码 | 唯一 retrieval 路径写死 ChromaDB client | **立即抽象** |
-| **P1** | `_build_vanna()` 每次调用重建 + 重新 train | Vanna 实例在 `generate_sql()` 内部每次重建 | 缓存 Vanna 实例或 LCEL 替换 |
-| **P1** | 两套 DB 抽象层并行 | `database.py` + `db_abstraction.py` 设计意图不同却并存 | 消重，保留一套 |
-| **P2** | 27 条规则硬编码 | 与代码耦合 | Step 1 已规划，YAML 化 |
-| **P2** | `QuestionClassification` 结果未充分使用 | `category` 字段全程未参与路由决策 | 作为 `SqlGenerator.supports()` 参数传入 |
-| **P2** | `generate_sql()` 7 职责混合 | 有测试覆盖，拆分时机依赖 P0/P1 完成后 | 延后到 Step 3 |
-| **P2** | Provider Registry 装饰器 | 2 个 Provider 不需要 `@register` 复杂度 | 保持 if-elif 链即可 |
+1. 单仓推进，不为整齐提前做过度工程化。
+2. 先冻结边界，再迁移代码。
+3. LLM 优先，但必须 grounding。
+4. 工具化执行，而不是自由生成高风险动作。
+5. 每个阶段都必须可验收、可回退、可追踪。
 
 ---
 
-## 四、Round 4 关键修正（对比 Round 3 方案）
+## 3. 阶段划分
 
-### 修正 1：删除过度工程化项目
-Round 3 方案的以下内容被 **删除**：
-- ❌ `FAISSRetriever` / `PGVectorRetriever` 实现（无 benchmark 需求，等真正需要时再实现）
-- ❌ `BGEEmbedding` / `M3EEmbedding` / `OpenAIEmbedding` 三个 wrapper 类（直接用 LangChain 类即可）
-- ❌ `BailianLLMGenerator` 独立类（与 `LLMGenerator` 完全雷同）
-- ❌ LCEL Chain 替代 Vanna（Vanna 是生成核心实现，替换成本极高，收益不确定）
-
-### 修正 2：Provider Registry 降级
-- `@register` 装饰器方案降为 P2 未来选项
-- 当前 2 个 Provider 保持 if-elif 链，不增加复杂度
-- `astron` 隐藏 bug（settings 有分支但 client.py 缺失）单独 P1 fix
-
-### 修正 3：执行顺序重排
-详见 `02-pending.md`，核心变化：
-- **Step 5（Registry）提前到 Step 1.5**（纯添加性基础设施）
-- **Step 6（SchemaRetriever）提前到 Step 2**（P0 核心，解锁 retrieval 抽象）
-- **Step 3（generate_sql 拆分）延后到 Step 5**（依赖前置抽象就绪）
-- **Step 7（Pipeline Stage）标注为长期目标**
-
-### 修正 4：LangChain 整合策略调整
-- **推迟** LCEL 替代 Vanna（R2 目标），直到 retrieval 层抽象稳定
-- **立即做**：用 LangChain `Embeddings` 接口替换 ChromaDB 内嵌 embedding（通过 `SchemaRetriever` 注入）
-- **核心收益**：`SchemaRetriever` 可切换 embedding 模型（bge/m3e/text-embedding-3）
+| 阶段 | 目标 | 状态 | 入口 |
+|---|---|---|---|
+| stage0 | 文档治理与架构冻结 | 已完成 | stage0/00-stage-plan.md |
+| stage1 | 仓库物理整理与代码重构 | 进行中 | stage1/00-stage-plan.md |
+| stage2 | LLM 优先与 grounding 底座 | 未开始 | stage2/00-stage-plan.md |
+| stage3 | 多轮 Copilot 与结果表达 | 未开始 | stage3/00-stage-plan.md |
+| stage4 | 受治理动作与审批回滚 | 未开始 | stage4/00-stage-plan.md |
+| stage5 | 评测、发布与生产门禁 | 未开始 | stage5/00-stage-plan.md |
 
 ---
 
-## 五、最终执行顺序
+## 4. 阶段流转规则
 
-```
-Step 1  →  Step 5  →  Step 2  →  Step 6  →  Step 3  →  Step 4  →  Step 7
-(YAML化)   (Registry)  (Chart)   (Retriever)  (拆分)     (DB消重)   (Pipeline)
- ↓          ↓          ↓          ↓          ↓          ↓
- 低风险    纯添加     代码搬家   P0核心    依赖就绪   收尾消重    长期目标
-```
+1. 未开始阶段的任务只出现在 02-pending.md。
+2. 一旦启动某阶段，该阶段任务迁入 03-in-progress.md。
+3. 阶段完成后，该阶段任务迁入 01-completed.md。
+4. 04-temp-memory.md 只保留当前阶段的临时决策、风险和下一步，不保留长期历史。
 
 ---
 
-## 六、方案成熟度
+## 5. 当前阶段结论
 
-| 检查项 | 状态 | 说明 |
-|--------|------|------|
-| 问题优先级修正 | ✅ | Round 4 深度扫描后重新分级 |
-| 执行顺序优化 | ✅ | Step 5/6 前置，Step 3 延后 |
-| 过度工程清理 | ✅ | 删除 3 类过度设计 |
-| 向后兼容策略 | ✅ | 双版本 + feature flag |
-| LangChain 策略 | ✅ | 推迟 Vanna 替换，先做 retrieval 抽象 |
-| Step 文档更新 | ✅ | `02-pending.md` 已同步 |
+当前已经完成 stage0，正在执行 stage1。
 
-**结论：方案已成熟，可以开始执行。**
+stage1 的目标是：
+
+1. 完成根目录和 app 的物理整理收束。
+2. 把 app/core 的主逻辑分批迁入新分层。
+3. 建立“新路径实现 + 旧路径兼容壳 + 最小验证”的重构节奏。
 
 ---
 
-*本方案归档于 `devfile/00-master-plan.md`，作为后续开发依据。*
-*最后更新：2026-04-15*
+## 6. 目录使用规则
+
+1. devfile 根目录只保留 00 到 04 五份入口文档。
+2. 所有阶段性详细执行文档只放在 stage* 子目录。
+3. 所有主题性背景、架构、经验和参考只放在 references/ 子目录。
+4. archive/ 只承接旧版结构和历史快照，不作为当前执行入口。
+
+---
+
+## 7. 直接执行顺序
+
+1. 先看 03-in-progress.md。
+2. 再进入当前 stage 的 00-stage-plan.md。
+3. 如需具体方案，进入当前 stage 目录下的详细文档。
+4. 如需背景解释，再进入 references/ 对应主题文档。
+
+---
+
+## 8. 参考入口
+
+1. references/architecture/：当前状态、目标架构、路线图参考。
+2. references/themes/：LLM、Copilot、治理动作、评测与历史经验参考。
+

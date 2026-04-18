@@ -15,6 +15,8 @@
 
 ## 系统架构概览
 
+> 更新说明：本文档的历史内容仍保留当前已运行实现，但从 2026-04-18 起，代码物理目录结构开始从平铺 `app/core` 迁移到“分层 + 分域”结构。目标方案以 `presentation / application / domain / infrastructure` 为主，而不是继续在 `app/core` 下横向堆模块。
+
 ### 四层架构
 
 ```
@@ -85,6 +87,8 @@
 
 ### 目录结构
 
+#### 当前运行结构
+
 ```
 text2sql-agent/
 ├── app/
@@ -138,6 +142,52 @@ text2sql-agent/
 ├── tests/                     # 测试用例
 └── docs/                      # 文档
 ```
+
+#### 目标迁移结构
+
+```text
+app/
+├── presentation/                # API、UI、transport adapters
+│   ├── api/
+│   └── ui/
+├── application/                # use cases、workflow、orchestration
+│   ├── orchestration/
+│   ├── conversations/
+│   ├── analytics/
+│   └── actions/
+├── domain/                     # entities、value objects、business rules
+│   ├── conversation/
+│   ├── catalog/
+│   ├── query/
+│   ├── governance/
+│   └── visualization/
+├── infrastructure/             # llm、retrieval、persistence、execution、security、observability
+│   ├── llm/
+│   ├── retrieval/
+│   ├── persistence/
+│   ├── execution/
+│   ├── security/
+│   └── observability/
+├── shared/                     # DTO、types、utils
+└── config/                     # settings、feature flags
+```
+
+#### 为什么不直接用简单 MVC
+
+MVC 适合页面驱动应用，但不适合当前这种 AI + 数据执行系统。因为一旦直接采用 `model/view/controller`：
+
+- `model` 会同时塞入领域对象、用例编排、provider 适配和执行细节
+- `controller` 会演变成 LLM 路由、SQL 执行、审批和会话状态机的大杂烩
+- `llm / retrieval / sql / policy / audit` 这类能力没有稳定落点
+
+因此更适合采用：
+
+- `presentation`：表达层
+- `application`：应用编排层
+- `domain`：核心业务层
+- `infrastructure`：技术实现层
+
+它比简单 MVC 更容易让人一眼看出“哪里是业务规则，哪里是技术适配，哪里是入口层”。
 
 ---
 
